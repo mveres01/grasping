@@ -11,8 +11,11 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.decomposition import PCA
 from sklearn import preprocessing
 
-from utils import format_htmatrix
+from utils import format_htmatrix, plot_mesh
 
+
+def floatX(x):
+    return np.float32(x)
 
 # This function splits a dataset into train/test splits
 def split_dataset(n_samples, train_size=0.8, use_valid=False):
@@ -71,9 +74,9 @@ def load_all(fname=None):
     object_name = np.atleast_2d(f['OBJECT_NAME'][:]).T
     pregrasp = f['GRIPPER_PREGRASP']
 
-    mask_images = f['GRIPPER_IMAGE_MASK'][:].astype(theano.config.floatX)
-    depth_images = f['GRIPPER_IMAGE'][:].astype(theano.config.floatX)
-    colour_images = f['GRIPPER_IMAGE_COLOUR'][:].astype(theano.config.floatX)
+    mask_images = floatX(f['GRIPPER_IMAGE_MASK'][:])
+    depth_images = floatX(f['GRIPPER_IMAGE'][:])
+    colour_images = floatX(f['GRIPPER_IMAGE_COLOUR'][:])
     images = np.concatenate((depth_images, colour_images), axis=1)
 
     grasps = pregrasp['grasp_wrt_cam'][:]

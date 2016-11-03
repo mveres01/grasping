@@ -10,7 +10,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 from utils import format_htmatrix, invert_htmatrix
-
+from utils import calc_mesh_centroid, plot_equal_aspect, plot_mesh
 
 GLOBAL_SAVE_DIR = 'candidates'
 GLOBAL_MESH_DIR = '/mnt/data/datasets/grasping/stl_files'
@@ -103,79 +103,6 @@ def intersect_box(itx, minx, maxx, miny, maxy, minz, maxz):
        itx[2] < minz or itx[2]>maxz:
         return False
     return True
-
-
-def calc_mesh_centroid(trimesh_mesh,  center_type='vrep'):
-    """Calculates the center of a mesh according to three different metrics."""
-    
-    if center_type == 'centroid':
-        return trimesh_mesh.centroid
-    elif center_type == 'com':
-        return trimesh_mesh.center_mass
-    elif center_type == 'vrep': # How V-REP assigns object centroid
-        maxv = np.max(trimesh_mesh.vertices, axis=0)
-        minv = np.min(trimesh_mesh.vertices, axis=0)
-        return 0.5*(minv+maxv)
-
-        
-def plot_equal_aspect(vertices, axis):
-    """Forces the plot to maintain an equal aspect ratio
-    
-    # See: http://stackoverflow.com/questions/13685386/matplotlib-equal-unit-length-with-equal-aspect-ratio-z-axis-is-not-equal-to
-    """
-
-    max_dim = np.max(np.array(np.max(vertices, axis=0) - \
-                              np.min(vertices, axis=0)))
-
-    mid = 0.5*np.max(vertices, axis=0) + np.min(vertices, axis=0)
-    axis.set_xlim(mid[0] - max_dim, mid[0] + max_dim)
-    axis.set_ylim(mid[1] - max_dim, mid[1] + max_dim)
-    axis.set_zlim(mid[2] - max_dim, mid[2] + max_dim)
-
-    axis.set_xlabel('X')
-    axis.set_ylabel('Y')
-    axis.set_zlabel('Z')
-    
-    return axis
-
-    
-def plot_mesh(mesh_name, workspace2obj, axis=None):
-    """Visualize where we will sample grasp candidates from
-
-    Parameters
-    ----------
-    mesh_name : name of the mesh (assuming it can be found in given path)
-    workspace2obj : 4x4 transform matrix from the workspace to object
-    obj2gripper : 4x4 transform matrix from the object to gripper
-    corners : (n,3) list of bounding box corners, in objects frame
-    points : grasp candidates where the gripper palm intersects bbox
-    """
-            
-    if axis is None:
-        figure = plt.figure()
-        axis = Axes3D(figure)
-        axis.autoscale(False)
-
-    # Load the object mesh
-    path = os.path.join(GLOBAL_MESH_DIR, mesh_name)
-    mesh = trimesh.load_mesh(path+'.stl')
-
-    # V-REP encodes the object centroid as the literal center of the object, 
-    # so we need to make sure the points are centered the same way
-    center = calc_mesh_centroid(mesh, center_type='vrep')
-    mesh.vertices -= center
-
-    # Rotate the vertices so they're in the frame of the workspace
-    mesh.apply_transform(workspace2obj)
-
-    # Construct a 3D mesh via matplotlibs 'PolyCollection'
-    poly = Poly3DCollection(mesh.triangles, linewidths=0.05, alpha=0.25)
-    poly.set_facecolor([0.5,0.5,1])
-    axis.add_collection3d(poly)
-
-    axis = plot_equal_aspect(mesh.vertices, axis)
-
-    return axis
 
 
 def plot_bbox(work2obj, bbox, axis=None):
