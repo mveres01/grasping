@@ -69,9 +69,9 @@ def tile_grasps_mesh(grasp_orig, grasp_pred, labels):
         normals = np.zeros((n_fingers, 3))
 
         for i in xrange(n_fingers):
-            pos = graspData[i*n_fingers : i*n_fingers + 3]
-            nml = graspData[3*n_fingers + i*n_fingers: \
-                            3*n_fingers + i*n_fingers + 3]
+            pos = graspData[i*3 : i*3 + 3]
+            nml = graspData[n_fingers*3 + i*3: \
+                            n_fingers*3 + i*3 + 3]
     
             if htmatrix is not None:
                 pos = np.dot(htmatrix, format_point(pos))[:3]
@@ -79,11 +79,11 @@ def tile_grasps_mesh(grasp_orig, grasp_pred, labels):
             positions[i] = pos
             normals[i] = nml
 
-        normals = - normals / np.sqrt(np.sum(normals, axis=1))
+        normals = - normals / np.sqrt(np.sum(normals**2, axis=1))
         return (positions, normals)
 
 
-    # Create figure and set ranges
+    # Create figure and set range
     n_samples, n_var = grasp_pred.shape
 
     if grasp_orig is not None:
@@ -135,54 +135,24 @@ def tile_grasps_mesh(grasp_orig, grasp_pred, labels):
   
       
 if __name__ == '__main__':
+  
+    from utils import load_dataset_hdf5 
+
+    save_dir = '/scratch/mveres/mesh_images'
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
    
- 
-    stl_dir = '/mnt/data/datasets/grasping/stl_files'
-    file_path ='/scratch/mveres/predictions/SINGLE-pred.csv'
-   
-    if not os.path.exists('images'):
-        os.makedirs('images')
-    
-    data = pd.read_csv(file_path, header=None, index_col=False)
-    
-    for i, params in enumerate(data):
+    fname = '/scratch/mveres/ttv_localencode_v40.hdf5'
+    data = load_dataset_hdf5(fname, 100)
+    train_grasps, train_images, train_labels, train_props = data[0]
+
+    for i in xrange(train_grasps.shape[0]):
     
         plt.close('all')
-        
-        name = str(data.iloc[i,0])
-        world2obj = format_htmatrix(data.iloc[i,1:13].astype(np.float32))
-        obj2cam = data.iloc[i,13:25].astype(np.float32)
-        pos0 = data.iloc[i,25:28].astype(np.float32)
-        pos1 = data.iloc[i,28:31].astype(np.float32)
-        pos2 = data.iloc[i,31:34].astype(np.float32)
-        nml0 = data.iloc[i,34:37].astype(np.float32)
-        nml1 = data.iloc[i,37:40].astype(np.float32)
-        nml2 = data.iloc[i,40:43].astype(np.float32)
-        
-        # Load the object mesh
-        obj = name.split('/')[-1]
-        
-        print 'Object: %s'%obj
-        obj_path = os.path.join(stl_dir, obj+'.stl')
-        obj_mesh = mesh.Mesh.from_file(obj_path)
-        obj_mesh = import_and_rotate_mesh(obj_mesh, world2obj)
-            
-        pos0 = np.dot(world2obj, format_point(pos0))[:3]
-        pos1 = np.dot(world2obj, format_point(pos1))[:3]
-        pos2 = np.dot(world2obj, format_point(pos2))[:3]
-        nml0 = np.dot(world2obj[:3,:3], nml0)
-        nml1 = np.dot(world2obj[:3,:3], nml1)
-        nml2 = np.dot(world2obj[:3,:3], nml2)
-        
-        # Flip the direction of unit vector to point inwards (towards object)
-        nml0 = - nml0 / (np.sqrt(np.sum(nml0**2)))
-        nml1 = - nml1 / (np.sqrt(np.sum(nml1**2)))
-        nml2 = - nml2 / (np.sqrt(np.sum(nml2**2)))
-        
-   
-        save_name =  'images/'+str(i)+'-'+obj+'.png'
-        plot_predicted_pose(\
-            obj_mesh, [pos0, pos1, pos2], [nml0, nml1, nml2], save_name)
-        #plt.show()
-   
+        name = str(train_labels[i,0])
+        save_path = os.path.join(save_dir, str(i)+name+'.png')
+        fig = tile_grasps_mesh(None, train_grasps[i:i+1], train_labels[i]) 
+        plt.tight_layout()
+        plt.savefig(save_path)
+           
 

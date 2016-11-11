@@ -29,9 +29,9 @@ from visualize import (visualize_mu_logsigma_output, display_grasps)
 
 from visualize_grasps_mesh import tile_grasps_mesh
 
-from loss import build_conditional_loss
-from loss import estimate_cll
-from networks import build_cgm_network
+from loss import build_gsnn_loss
+from loss import estimate_gsnn_cll as estimate_cll
+from networks import build_gsnn_network
 
 from visualize import  plot_tsne_generated_grasps_gmm
 
@@ -211,7 +211,7 @@ def build_network(params):
     
     # Create VAE model and (optionally) load previously saved weights
     print '  Building Model ... '
-    network = build_cgm_network(**params)
+    network = build_gsnn_network(**params)
 
     params['net_outputs'] =  [network['l_gener_x'], network['l_prior_z']]
 
@@ -245,7 +245,7 @@ def build_train_fcns(network, X1, Y, lrate, n_cll, beta1, beta2, **kwargs):
     # Generates a sample using the mean predictions of the network
     genz = nn.get_output(network['l_prior_z'], deterministic=True)
     genx = nn.get_output(network['l_gener_x'], 
-                        {network['l_recog_z']:genz}, 
+                        {network['l_prior_z']:genz}, 
                          deterministic=True)
     gen_fcn = theano.function([X1], genx) 
 
@@ -254,7 +254,7 @@ def build_train_fcns(network, X1, Y, lrate, n_cll, beta1, beta2, **kwargs):
     net_outputs= [network['l_gener_x'], network['l_prior_z']]
     net_params = lasagne.layers.get_all_params(net_outputs, trainable=True)
 
-    loss, _ = build_conditional_loss(False, network, Y)
+    loss, _ = build_gsnn_loss(False, network, Y)
 
     grads = T.grad(loss, net_params)
     updates = lasagne.updates.adam(grads, net_params, 
@@ -264,18 +264,16 @@ def build_train_fcns(network, X1, Y, lrate, n_cll, beta1, beta2, **kwargs):
     train_fcn = theano.function([X1, Y], loss, updates=updates)   
 
     print '  Compiling validation function ... ' 
-    val_loss, val_pred = build_conditional_loss(True, network, Y)
+    val_loss, val_pred = build_gsnn_loss(True, network, Y)
     
     # Function for validating losses given both inputs simultaneously
     val_fcn = theano.function([X1, Y], [val_loss, val_pred])
 
     stoch_vars = lasagne.layers.get_output(
-              [network['l_recog_mu'], network['l_recog_ls'],
-               network['l_prior_mu'], network['l_prior_ls'],
+              [network['l_prior_mu'], network['l_prior_ls'],
                network['l_gener_mu'], network['l_gener_ls']],
                deterministic=True)
-    stoch_vis_fcn = theano.function([X1, Y], stoch_vars)
-
+    stoch_vis_fcn = theano.function([X1], stoch_vars)
 
 
     # Get the first parameterizing distribution
@@ -291,7 +289,7 @@ def build_train_fcns(network, X1, Y, lrate, n_cll, beta1, beta2, **kwargs):
     # Get the generators parameterizing distribution
     grasp_vals = lasagne.layers.get_output(
         [network['l_gener_mu'], network['l_gener_ls']],
-        {network['l_recog_z']:code}, deterministic=True)
+        {network['l_prior_z']:code}, deterministic=True)
 
     # Sample stochastically
     grasp_stoch = lasagne.layers.get_output(
@@ -414,9 +412,7 @@ def train(network, X_train, X_test, X_val, params, train_fcns):
                           mu_sigma_fcn, epoch, params['save_dir'], n_samples=6)
 
             latent_outputs = []
-            rz_mu, rz_ls, pz_mu, pz_ls, gz_mu, gz_ls = \
-                stoch_vis_fcn(valid_image[:1000], valid_grasp[:1000])
-            latent_outputs.append([rz_mu, rz_ls, 'Recognition'])
+            pz_mu, pz_ls, gz_mu, gz_ls = stoch_vis_fcn(valid_image[:1000])
             latent_outputs.append([pz_mu, pz_ls, 'Prior'])
             latent_outputs.append([gz_mu, gz_ls, 'Generator'])
            
@@ -466,7 +462,9 @@ def train(network, X_train, X_test, X_val, params, train_fcns):
 def visualize_network(network, data_in, params, train_fcns, objtype='similar'):
 
     global scaler
-    
+   
+
+    n_samples=5
     n_samples_per_gen = 10 
     image_var  = params['X1']
     grasp_var  = params['Y']
@@ -500,7 +498,7 @@ def visualize_network(network, data_in, params, train_fcns, objtype='similar'):
     # Get the generators parameterizing distribution
     grasp_vals = lasagne.layers.get_output(
         [network['l_gener_mu'], network['l_gener_ls']],
-        {network['l_recog_z']:code}, deterministic=True)
+        {network['l_prior_z']:code}, deterministic=True)
 
     # Sample stochastically
     grasp_stoch = lasagne.layers.get_output(
@@ -510,7 +508,7 @@ def visualize_network(network, data_in, params, train_fcns, objtype='similar'):
 
     # For making deterministic predictions (MEAN value only) 
     mean_pred = lasagne.layers.get_output(
-        network['l_gener_x'], {network['l_recog_z']:code}, deterministic=True)
+        network['l_gener_x'], {network['l_prior_z']:code}, deterministic=True)
 
     # Generate an output using DETERMINISTIC z, DETERMINISTIC x 
     mean_gen_fcn = theano.function([params['X1'] ], grasp_vals[0])
@@ -572,7 +570,6 @@ def visualize_network(network, data_in, params, train_fcns, objtype='similar'):
         code = np.vstack(gr_pred[0])
         output_pred = np.vstack(gr_pred[1])
 
-        n_samples=5
         sampled_grasps = np.zeros((n_samples, 18))
         for i in xrange(n_samples):
 
@@ -593,9 +590,8 @@ def visualize_network(network, data_in, params, train_fcns, objtype='similar'):
 
         plt.close('all')
         save_path = os.path.join(pred_dir, '%s_sampled_grasps.png'%(r))
-        fig = tile_grasps_mesh(None, sampled_grasps, labels[r]) 
+        tile_grasps_mesh(None, sampled_grasps, labels[r]) 
         plt.savefig(save_path)
-
 
 def init_paths_and_logger(model_type):
 
@@ -714,10 +710,9 @@ if __name__ == '__main__':
     x1_filts = [16, 16, 32, 32, 64, 64, 64, 64, 64, 64]
     x1_fsize = [3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
     n_channels = 4
-    n_train = int(2**15)
-
+    n_train = int(2**16)
     param_list = {
-            'model_type':'cvae-%s'%n_train,
+            'model_type':'gsnn-%s'%n_train,
             'save_weights':True,
             'batch_size':200,
             'lrate':1e-3,
@@ -726,16 +721,16 @@ if __name__ == '__main__':
             'beta2':0.99,
             'x1_filts':x1_filts,
             'x1_fsize':x1_fsize,
-            'r_hid_x1':[100],
-            'r_hid_y':[y_dim],
-            'r_hid_shared':[64, z_dim],  
+            'r_hid_x1':None,
+            'r_hid_y':None,
+            'r_hid_shared':None,  
             'p_hid_x1':[100, z_dim], 
             'd_hid_x1':[100, 18],
             'g_hid_z':[z_dim, z_dim, 18],
             'x1_shape':(None, n_channels, 128, 128),
             'y_shape':(None, 18),
             'nonlinearity':lasagne.nonlinearities.LeakyRectify(0.2),
-            'regularization':'dropout',
+            'regularization':'weight_norm',
             'p':0.3, 
             'rng':None,
             'weight_file':None,

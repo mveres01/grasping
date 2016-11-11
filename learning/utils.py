@@ -256,7 +256,6 @@ def sample_poses(hdf5_file, fname, image_dir):
     csvfile.close()
 
 
-
 def get_maximized_prediction(sampled_mu, sampled_ls, eps=1e-6):
     """Compute y = argmax( 1/L Sum(likelihood)). """
 
@@ -327,10 +326,17 @@ def split_similar_objects(list1, list2):
     indices = np.arange(list2.shape[0])
 
     # Get the class number from objects in the test set
-    list2_labels = [(l.split('/')[-1]).split('_')[0] for l in list2[:,0]]
+    list2_labels = [(l.split('/')[-1]) for l in list2[:,0]]
+
+    list2_labels = [l.split('_')[0] + l.split('_')[1] for l in list2[:,0]]
 
     # Get the object name from items in the train set
     list1_labels = [l.split('_')[0] for l in list1]
+
+
+    print 'list_1: ',list1_labels[:10]
+    print 'list_2: ',list2_labels[:10]
+
 
     # Similar objects are those objects in the test set that are similar
     # to objects seen in the training set

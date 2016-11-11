@@ -31,7 +31,7 @@ from visualize_grasps_mesh import tile_grasps_mesh
 
 from loss import build_conditional_loss
 from loss import estimate_cll
-from networks import build_cgm_network
+from networks import build_recurrent_network
 
 from visualize import  plot_tsne_generated_grasps_gmm
 
@@ -211,7 +211,7 @@ def build_network(params):
     
     # Create VAE model and (optionally) load previously saved weights
     print '  Building Model ... '
-    network = build_cgm_network(**params)
+    network = build_recurrent_network(**params)
 
     params['net_outputs'] =  [network['l_gener_x'], network['l_prior_z']]
 
@@ -466,7 +466,9 @@ def train(network, X_train, X_test, X_val, params, train_fcns):
 def visualize_network(network, data_in, params, train_fcns, objtype='similar'):
 
     global scaler
-    
+   
+
+    n_samples=5
     n_samples_per_gen = 10 
     image_var  = params['X1']
     grasp_var  = params['Y']
@@ -572,7 +574,6 @@ def visualize_network(network, data_in, params, train_fcns, objtype='similar'):
         code = np.vstack(gr_pred[0])
         output_pred = np.vstack(gr_pred[1])
 
-        n_samples=5
         sampled_grasps = np.zeros((n_samples, 18))
         for i in xrange(n_samples):
 
@@ -586,16 +587,14 @@ def visualize_network(network, data_in, params, train_fcns, objtype='similar'):
                 y = scaler.inverse_transform(y)
             sampled_grasps[i] = y
 
-
         # Use t-SNE to make a plot of our WHOLE data distribution
         plot_tsne_generated_grasps_gmm(
             output_pred, labels[r], pred_dir+'/'+str(r), scaler) 
 
         plt.close('all')
         save_path = os.path.join(pred_dir, '%s_sampled_grasps.png'%(r))
-        fig = tile_grasps_mesh(None, sampled_grasps, labels[r]) 
+        tile_grasps_mesh(None, sampled_grasps, labels[r]) 
         plt.savefig(save_path)
-
 
 def init_paths_and_logger(model_type):
 
@@ -714,10 +713,10 @@ if __name__ == '__main__':
     x1_filts = [16, 16, 32, 32, 64, 64, 64, 64, 64, 64]
     x1_fsize = [3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
     n_channels = 4
-    n_train = int(2**15)
+    n_train = int(2**16)
 
     param_list = {
-            'model_type':'cvae-%s'%n_train,
+            'model_type':'rcvae-%s'%n_train,
             'save_weights':True,
             'batch_size':200,
             'lrate':1e-3,
@@ -734,8 +733,9 @@ if __name__ == '__main__':
             'g_hid_z':[z_dim, z_dim, 18],
             'x1_shape':(None, n_channels, 128, 128),
             'y_shape':(None, 18),
+            #'nonlinearity':lasagne.nonlinearities.rectify,
             'nonlinearity':lasagne.nonlinearities.LeakyRectify(0.2),
-            'regularization':'dropout',
+            'regularization':'weight_norm',
             'p':0.3, 
             'rng':None,
             'weight_file':None,
