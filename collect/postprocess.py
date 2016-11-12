@@ -83,6 +83,7 @@ def load_all(fname=None):
     cam_wrt_obj = pregrasp['cam_wrt_obj'][:]
     img_wrt_cam = pregrasp['img_wrt_cam'][:]    
     obj_wrt_world = pregrasp['obj_wrt_world'][:]
+    workspace_wrt_world = pregrasp['workspace_wrt_world'][:]
 
     if 'cam_wrt_world' not in pregrasp:
         cam_wrt_world = np.empty(obj_wrt_world.shape)
@@ -96,7 +97,8 @@ def load_all(fname=None):
     labels = np.hstack([object_name, 
                         obj_wrt_world, 
                         cam_wrt_obj, 
-                        cam_wrt_world, 
+                        cam_wrt_world,
+                        workspace_wrt_world, 
                         img_wrt_cam]) 
 
     com_wrt_obj = pregrasp['com_wrt_cam'][:]
@@ -140,7 +142,6 @@ def splitAndSaveDataset():
     test_data = load_dataset(test_dir, test_objects)
     test_grasps, test_images, test_labels, test_props = test_data
 
-
     # Randomly shuffle the test set
     indices = np.arange(test_grasps.shape[0])
     np.random.seed(12345)
@@ -169,6 +170,12 @@ def splitAndSaveDataset():
     train_labels = tr_labels[train_indices]
     train_props = tr_props[train_indices]
 
+
+    print 'train_labels: ',train_labels[:2]
+#print 'valid_labels: ',valid_labels[:2]
+#print 'test_labels: ',test_labels[:2]
+
+    
     df = h5py.File(dataset_save_path, 'a')
     group = df.create_group('train')
     group.create_dataset('images', data=train_images)
@@ -192,8 +199,8 @@ def splitAndSaveDataset():
     group.create_dataset('labels',  data=valid_labels)
     group.create_dataset('object_props', data=valid_props)
     df.close()
-
-
+    
+    
 
 if __name__ == '__main__':
     splitAndSaveDataset()

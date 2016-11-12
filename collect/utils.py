@@ -197,20 +197,30 @@ def sample_images(hdf5_file, fname, image_dir):
         image_col = image_col*255.0
         image_col = image_col.transpose(1,2,0)
         image_col = image_col.astype(np.uint8)
-        image_bw = Image.fromarray(image_col).convert('L')
-        image_bw = np.array(image_bw, dtype=np.float32)/255.0
+
+        print 'image_col.shape: ',image_col.shape
+        image_col = Image.fromarray(image_col)
 
         # Get ride of channel column on depth image
         image_depth = np.squeeze(image_depth)
 
         # Combine them into a single image
-        im = Image.new('L',(cols*3, rows*1))
-        im.paste(Image.fromarray(np.uint8(image_bw*255.0)), \
-                                (0, 0, cols, rows))
-        im.paste(Image.fromarray(np.uint8(image_depth*255.0)),\
-                (cols, 0, cols*2,rows))
-        im.paste(Image.fromarray(np.uint8(image_mask*255.0)), \
-                (cols*2, 0, cols*3, rows))
+        im = Image.new('RGB',(cols*3, rows*1))
+        im.paste(image_col, (0, 0, cols, rows))
+
+        image_depth = image_depth[:, :, np.newaxis]*255.0
+        image_depth = np.tile(image_depth, (1, 1, 3))
+        image_depth = image_depth.astype(np.uint8)
+        image_depth = Image.fromarray(image_depth)
+
+        image_mask = image_mask[:, :, np.newaxis]*255.0
+        image_mask = np.tile(image_mask, (1, 1, 3))
+        image_mask = image_mask.astype(np.uint8)
+        image_mask = Image.fromarray(image_mask)
+
+        im.paste(image_depth, (cols, 0, cols*2,rows))
+        im.paste(image_mask, (cols*2, 0, cols*3, rows))
+      
         obj_name = fname[:-4]
         im.save(os.path.join(image_dir, obj_name+str(idx)+'.png'))
 

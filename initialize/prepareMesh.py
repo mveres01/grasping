@@ -4,7 +4,6 @@ import pandas as pd
 import trimesh
 
 from trimesh.io.export import export_mesh
-from utils import visualize_mesh
 
 # Set a constant object mass and density
 mass = 1.0
@@ -109,7 +108,7 @@ def main():
     file_path = os.path.abspath(__file__)
     base_dir = os.path.dirname(os.path.dirname(file_path))
     save_dir = os.path.join(base_dir, 'meshes')
-        
+       
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
@@ -143,8 +142,8 @@ def main():
             mesh.fill_holes()
 
         if mesh.is_watertight:
-            fn = os.path.join(save_dir,f.split('.obj')[0])
-            export_mesh(mesh,fn+'.stl', 'stl')  
+            fn = os.path.join(save_dir, f.split('.obj')[0])
+            export_mesh(mesh, fn+'.stl', 'stl')  
         else:
             continue
 
@@ -169,7 +168,6 @@ def main():
         # Two different ways to visualize the mesh. One is prebuilt with
         # the library, the other is by using matplotlib and polycollection
         #mesh.show()
-        #visualize_mesh(mesh, 'com')
         good_mesh_cnt+=1
 
     processed = processed[:good_mesh_cnt]

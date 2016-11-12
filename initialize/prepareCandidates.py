@@ -5,7 +5,9 @@ import pandas as pd
 import trimesh
 import trimesh.transformations as tf
 
-import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
+from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
@@ -157,7 +159,7 @@ def generate_candidates(bbox, work2obj, obj2grip):
 
     # Going to extend a vector along z-direction of palm. The extra 1 o the end
     # is for multiplying with a 4x4 HT matrix
-    palm_axis = np.atleast_2d([0, 0, 1, 1]).T
+    palm_axis = np.atleast_2d([0, 0, 10, 1]).T
 
     curr_trial = 0
     success = 0
@@ -280,7 +282,8 @@ def main(df, to_keep=-1):
     # ------------------------------------------------------------------------ 
     # To visualize the generated candidates, we need to transform the points
     # (which are the the objects reference frame) to the workspace frame
-    fig = plot_mesh(name, work2obj)
+    mesh_name = os.path.join(GLOBAL_MESH_DIR, name+'.stl')
+    fig = plot_mesh(mesh_name, work2obj)
     plot_bbox(work2obj, bbox, axis=fig)
 
     n_plot = np.minimum(500, success)

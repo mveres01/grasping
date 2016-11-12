@@ -4,6 +4,7 @@ import numpy as np
 import trimesh
 from trimesh import transformations as tf
 
+from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits import mplot3d
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from matplotlib import pyplot as plt
@@ -31,7 +32,7 @@ def plot_equal_aspect(vertices, axis):
     # http://stackoverflow.com/questions/13685386/matplotlib-equal-unit-length-with-equal-aspect-ratio-z-axis-is-not-equal-to
     """
 
-    max_dim = np.max(np.array(np.max(vertices, axis=0) - \ 
+    max_dim = np.max(np.array(np.max(vertices, axis=0) - \
                               np.min(vertices, axis=0)))
 
     mid = 0.5*np.max(vertices, axis=0) + np.min(vertices, axis=0)
@@ -63,9 +64,10 @@ def plot_mesh(mesh_name, workspace2obj, axis=None):
         axis = Axes3D(figure)
         axis.autoscale(False)
 
+    print 'mesh_name: ',mesh_name
+
     # Load the object mesh
-    path = os.path.join(GLOBAL_MESH_DIR, mesh_name)
-    mesh = trimesh.load_mesh(path+'.stl')
+    mesh = trimesh.load_mesh(mesh_name)
 
     # V-REP encodes the object centroid as the literal center of the object, 
     # so we need to make sure the points are centered the same way

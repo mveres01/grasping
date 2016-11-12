@@ -400,7 +400,6 @@ def build_prior_net(X1, x1_filts, x1_fsize, p_hid_x1,
     return {'l_input_x1':l_in_x1,  'l_z_mu':z_mu, 'l_z_ls':z_ls, 'l_z':z}
 
 
-
 # Decoder network, X = latent "codes"
 # Last element in g_z_hid should be the y-dimension
 def build_generation_net(Z, g_hid_z, nonlinearity, regularization, p, 
@@ -414,11 +413,11 @@ def build_generation_net(Z, g_hid_z, nonlinearity, regularization, p,
             layer, num_units=n_hid, W=W_init, b=b_init,
             nonlinearity=nonlinearity, name='g_z_hid%d'%i)
 
-        layer = apply_regularization(layer, regularization, p=p)
+    layer = apply_regularization(layer, regularization, p=p)
 
     l_x = nn.DenseLayer( 
         layer, num_units=g_hid_z[-1], W=W_init, b=b_init,
-        nonlinearity=None, name='g_x')
+        nonlinearity=nonlinearity, name='g_x')
         
     return {'l_x':l_x}
 
@@ -525,10 +524,11 @@ def build_recurrent_network(X1, Y, x1_filts, x1_fsize,
     # and both predictions need to be combined together before sampling out 
     predx = prediction['l_x']
     genx  = generation['l_x']
-    initial_z = nn.ElemwiseSumLayer([predx,genx], name='ElemwiseSum')
+
+    layer = nn.ConcatLayer([predx,  genx], axis=1, name='r_concat') 
 
     initial_z = nn.DenseLayer(
-        initial_z, num_units=d_hid_x1[-1], W=W_init, b=b_init,
+        layer, num_units=d_hid_x1[-1], W=W_init, b=b_init,
         nonlinearity=nonlinearity, name='e_sum_nonlin')
 
     initial_z = apply_regularization(initial_z, regularization, p=p)
@@ -543,6 +543,7 @@ def build_recurrent_network(X1, Y, x1_filts, x1_fsize,
 
     l_x  = GaussianSampleLayer(l_x_mu, l_x_ls, rng=rng, name='GenX')
 
+
     return {'l_recog_x1':recognition['l_input_x1'],
             'l_recog_y':recognition['l_input_y'],
             'l_recog_mu':recognition['l_z_mu'],
@@ -556,7 +557,7 @@ def build_recurrent_network(X1, Y, x1_filts, x1_fsize,
             'l_pred_x':prediction['l_x'],
             'l_gener_mu':l_x_mu,
             'l_gener_ls':l_x_ls,
-            'l_gener_x':l_x}    
+            'l_gener_x':l_x}   
 
 
 # p = dropout prob

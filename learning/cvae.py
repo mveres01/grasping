@@ -390,7 +390,7 @@ def train(network, X_train, X_test, X_val, params, train_fcns):
 
 
         # Estimate the conditional likelihood and use for early stopping
-        check_validation = epoch >= 20 and epoch%2 == 0
+        check_validation = epoch >= 30 and epoch%2 == 0
         valid_cll = 100000
         if check_validation:
             valid_cll = conditional_likelihood(cll_fcn, valid_image, valid_grasp)
@@ -709,12 +709,12 @@ if __name__ == '__main__':
     # NOTE: To try:
     # Instead of using a prediction net, i.e. p(y|x), just use pathway 
 
-    z_dim =3 
-    y_dim = 6
+    z_dim =6 
+    y_dim = 6 
     x1_filts = [16, 16, 32, 32, 64, 64, 64, 64, 64, 64]
     x1_fsize = [3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
     n_channels = 4
-    n_train = int(2**15)
+    n_train = int(2**16)
 
     param_list = {
             'model_type':'cvae-%s'%n_train,
@@ -731,12 +731,12 @@ if __name__ == '__main__':
             'r_hid_shared':[64, z_dim],  
             'p_hid_x1':[100, z_dim], 
             'd_hid_x1':[100, 18],
-            'g_hid_z':[z_dim, z_dim, 18],
+            'g_hid_z':[z_dim, 9, 18],
             'x1_shape':(None, n_channels, 128, 128),
             'y_shape':(None, 18),
             'nonlinearity':lasagne.nonlinearities.LeakyRectify(0.2),
             'regularization':'dropout',
-            'p':0.3, 
+            'p':0.1, 
             'rng':None,
             'weight_file':None,
             'W_init':lasagne.init.GlorotUniform(),
