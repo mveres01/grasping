@@ -706,15 +706,12 @@ if __name__ == '__main__':
     np.random.seed(seed)
         
 
-    # NOTE: To try:
-    # Instead of using a prediction net, i.e. p(y|x), just use pathway 
-
     z_dim =6 
     y_dim = 6 
     x1_filts = [16, 16, 32, 32, 64, 64, 64, 64, 64, 64]
     x1_fsize = [3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
     n_channels = 4
-    n_train = int(2**16)
+    n_train = int(2**15)
 
     param_list = {
             'model_type':'cvae-%s'%n_train,
@@ -742,7 +739,6 @@ if __name__ == '__main__':
             'W_init':lasagne.init.GlorotUniform(),
             'n_train':n_train,
             'n_cll':100,
-            'clip_grad':1,
             'max_norm':5}
 
     main(param_list)

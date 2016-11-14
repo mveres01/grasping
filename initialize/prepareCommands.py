@@ -5,12 +5,10 @@ import pandas as pd
 GLOBAL_NUM_COMPUTE_NODES = 5
 GLOBAL_CHUNK_SIZE = 1500
 GLOBAL_MAX_TRIALS = 10000
-#save_dir = '/mnt/data/datasets/grasping/scene_v39/commands/'
-#data_path = '/scratch/mveres/vrep-static-grasp/waterloo/initial_poses_v39/'
 
 save_dir = '/scratch/mveres/grasping/grasping/collect/commands'
 data_path = '/scratch/mveres/grasping/grasping/collect/candidates'
-program_name = '/scratch/mveres/grasping/grasping/collect/scene_v40.ttt'
+program_name = '/scratch/mveres/grasping/grasping/collect/scene_v40_cameras.ttt'
 
 
 def main():
@@ -62,8 +60,8 @@ def main():
     # flags such as 'headless mode' (-h), 'quit when done' (-q), 'start' 
     # (-s), 'input argument' (-g), and the simulation we will run.
     # Here, we give the input argument as the file contaianing grasp
-    # candidates 
-        
+    # candidates
+
     commands = [0]*len(info)
     for i, sub_cmd in enumerate(info):
 
