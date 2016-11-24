@@ -26,6 +26,7 @@ processed_data_dir = '/mnt/data/datasets/grasping/scene_v40'
 # We'll also save some images to visualize after
 image_dir = os.path.join(processed_data_dir, 'sample_images')
 
+# Save sample images
 pose_dir = '/scratch/mveres/images'
 
 image_width = 128
@@ -290,6 +291,10 @@ def decode_grasp(grasp_line, object_mask, object_depth_image):
     workspace2cam = format_htmatrix(workspace2cam)
     cam2workspace = invert_htmatrix(workspace2cam)   
 
+    workspace2camInvariant = grasp_line['rot_invariant_matrix']
+    workspace2camVariant = grasp_line['rot_variant_matrix']
+    
+
     cam2world = np.dot(cam2workspace, workspace2world) 
     obj2cam = np.dot(obj2workspace, workspace2cam) 
     obj2world = np.dot(obj2workspace, workspace2world)
@@ -339,6 +344,8 @@ def decode_grasp(grasp_line, object_mask, object_depth_image):
             'com_wrt_cam':cam2com,
             'obj_wrt_world':world2obj,
             'workspace_wrt_world':world2workspace, 
+            'cam_wrt_workspace_variant':workspace2camVariant,
+            'cam_wrt_workspace_invariant':workspace2camInvariant,
             'cam_wrt_obj':obj2cam,
             'cam_wrt_world':world2cam,
             'img_wrt_cam':cam2img,
@@ -374,6 +381,7 @@ def parse_grasp(line, header):
 
 def parse_image(image, mask=False):
 
+    # If image is 1 channel
     if len(image) == image_width*image_height:
         img = np.asarray(image).reshape((image_height, image_width)) 
         img = img.astype(np.float32)
@@ -386,6 +394,7 @@ def parse_image(image, mask=False):
         img = np.flipud(img)
         img = img[np.newaxis,np.newaxis,:,:]
 
+    # If image is RGB
     elif len(image) == image_width*image_height*3:
        
         img = np.asarray(image).reshape((image_height, image_width, 3)) 
@@ -419,11 +428,16 @@ def parse_image(image, mask=False):
 
 def decode(all_data):
 
+
+    # TOPDOWN_DEPTH_0, TOPDOWN_COLOUR_0, TOPDOWN_MATRIX_0
+    # DIRECT_DEPTH, DIRECT_COLOUR, 
+
     # Initialize elements to be None
-    keys = ['header', 'depth', 'colour', 'mask', 'pregrasp', 'postgrasp']
+    keys = ['header', 'depth', 'colour', 'mask', 'pregrasp', 'postgrasp', 
+            'direct_depth', 'direct_colour', 'topdown_depth', 'topdown_colour',
+            'topdown_matrix']
     decoded = {key: list() for key in keys}
     elems = dict.fromkeys(keys, None)
-
 
     count = 0
     for i, line in enumerate(all_data):
@@ -432,12 +446,31 @@ def decode(all_data):
         # image/grasp/header)
         data_type = line[0]
         data      = line[1:-1]
-    
-        if data_type == 'GRIPPER_IMAGE': # Depth image
+   
+        if 'TOPDOWN_DEPTH' in data_type: # Same orientation as manipulator
+            elems['topdown_depth'].append(parse_image(data))
+
+        elif 'TOPDOWN_COLOUR' in data_type: # Same orientation as manipulator
+            elems['topdown_colour'].append(parse_image(data))
+
+        elif 'TOPDOWN_MATRIX' in data_type: # Same orientation as manipulator
+            elems['topdown_matrix'].append(data)
+
+        # Regular start
+        elif data_type == 'GRIPPER_IMAGE': # Depth image
             elems['depth'] = parse_image(data)
 
         elif data_type == 'GRIPPER_IMAGE_COLOUR':
             elems['colour'] = parse_image(data)
+
+        elif data_type == 'GRIPPER_MASK_IMAGE':
+            elems['mask'] = parse_image(data, mask=True)
+
+        elif data_type == 'DIRECT_DEPTH': # Same orientation as manipulator
+            elems['direct_depth'] = parse_image(data)
+
+        elif data_type == 'DIRECT_COLOUR': # Same orientation as manipulator
+            elems['direct_colour'] = parse_image(data)
 
         elif data_type == 'GRIPPER_MASK_IMAGE':
             elems['mask'] = parse_image(data, mask=True)
@@ -502,11 +535,13 @@ def decode(all_data):
     return {'depth_images':np.vstack(decoded['depth']), 
             'mask_images':np.vstack(decoded['mask']),
             'colour_images':np.vstack(decoded['colour']),
+            'direct_depth':np.vstack(decoded['direct_depth']),
+            'direct_colour':np.vstack(decoded['direct_colour']),
             'pregrasps':pregrasp_dict,
             'postgrasps':postgrasp_dict}
 
 
-# NOTE: Ffinished here!
+# NOTE: Finished here!
 def postprocess(data, object_name): 
 
 
@@ -516,7 +551,9 @@ def postprocess(data, object_name):
         dataset['depth_images'] = dataset['depth_images'][indices]
         dataset['mask_images'] = dataset['mask_images'][indices]
         dataset['colour_images'] = dataset['colour_images'][indices]
-
+        dataset['direct_colour'] = dataset['direct_colour'][indices]
+        dataset['direct_depth'] = dataset['direct_depth'][indices]
+    
         for key in dataset['pregrasps'].keys():
             dataset['pregrasps'][key] = dataset['pregrasps'][key][indices]
             dataset['postgrasps'][key] = dataset['postgrasps'][key][indices]
@@ -567,6 +604,9 @@ def postprocess(data, object_name):
     df.create_dataset('GRIPPER_IMAGE', data=data['depth_images'])
     df.create_dataset('GRIPPER_IMAGE_MASK', data=data['mask_images'])
     df.create_dataset('GRIPPER_IMAGE_COLOUR', data=data['colour_images'])
+    df.create_dataset('DIRECT_IMAGE', data=data['direct_depth'])
+    df.create_dataset('DIRECT_COLOUR', data=data['direct_colour'])
+
 
     gr = df.create_group('GRIPPER_PREGRASP')
     for key in data['pregrasps'].keys():
@@ -579,7 +619,6 @@ def postprocess(data, object_name):
     df.create_dataset('OBJECT_NAME', data=[object_name]*postgrasp_size)
 
     sample_images(df, object_name, image_dir)
-    #sample_poses(df, object_name, image_dir)
     df.close()
        
     print 'Number of objects: ', postgrasp_size
@@ -664,12 +703,12 @@ def main():
 
 
 if __name__ == '__main__':
-    #main()
-    fpath = '/mnt/data/datasets/grasping/scene_v40/train'
-    fname = '41_jar_and_lid_final-05-Apr-2016-14-14-31'
-    df = os.path.join(fpath, fname+'.hdf5')
-    dset = h5py.File(df, 'r')
-
-    sample_images(dset, fname, 'temp_images')
+    main()
+    
+    #fpath = '/mnt/data/datasets/grasping/scene_v40/train'
+    #fname = '41_jar_and_lid_final-05-Apr-2016-14-14-31'
+    #df = os.path.join(fpath, fname+'.hdf5')
+    #dset = h5py.File(df, 'r')
+    #sample_images(dset, fname, 'temp_images')
 
     
