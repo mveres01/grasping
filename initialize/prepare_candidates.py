@@ -13,8 +13,8 @@ from mpl_toolkits.mplot3d import Axes3D
 from utils import plot_mesh, format_htmatrix
 
 GLOBAL_PROJECT_DIR = '/home/robot/Documents/grasping'
-GLOBAL_MESH_DIR = os.path.join(GLOBAL_PROJECT_DIR, 'meshes')
-GLOBAL_SAVE_DIR = os.path.join(GLOBAL_PROJECT_DIR, 'candidates')
+GLOBAL_MESH_DIR = os.path.join(GLOBAL_PROJECT_DIR, 'data/meshes/meshes')
+GLOBAL_SAVE_DIR = os.path.join(GLOBAL_PROJECT_DIR, 'collect/candidates')
 
 # Controls how big the rotation angles in each direction are
 GLOBAL_X = 45
