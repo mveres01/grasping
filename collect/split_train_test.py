@@ -161,9 +161,9 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='Command line options')
     parser.add_argument('--folder',type=str, dest='folder')
-    parser.set_defaults(folder='scene_v40') 
+    parser.set_defaults(folder='scene_v41') 
     args = parser.parse_args(sys.argv[1:])
  
     kwargs = vars(args)
     #split_dataset_traintest(kwargs['folder'])
-    plot_stats('/mnt/data/datasets/grasping/scene_v40/')
+    plot_stats('/mnt/data/datasets/grasping/scene_v41/')

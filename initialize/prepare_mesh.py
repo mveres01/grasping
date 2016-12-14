@@ -161,7 +161,7 @@ def process_meshes():
         inertia *= GLOBAL_DENSITY
 
         # We don't want an unreasonable inertia
-        inertia = np.clip(inertia, -1e-1, 1e-1)
+        inertia = np.clip(inertia, -1e-5, 1e-5)
         processed[good_mesh_cnt, 0] = morph_name
         processed[good_mesh_cnt, 1] = GLOBAL_MASS
         processed[good_mesh_cnt, 2:5] = com

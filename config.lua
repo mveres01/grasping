@@ -1,7 +1,7 @@
 myconf = {
 
     --[[
-    -- Basic configuration properties 
+    -- Basic configuration properties
     config = 'laptop';
     path_sep = '\\';
     data_dir = 'C:\\Users\\Matt\\Documents\\grasping\\initialize\\candidates\\';
@@ -13,18 +13,18 @@ myconf = {
     --[[
     config = 'school';
     path_sep = '/';
-    data_dir = '/home/robot/Documents/Matt/grasping/initialize/';
-    working_dir = '/home/robot/Documents/Matt/grasping/initialize/data/';
+    data_dir = '/home/robot/Documents/grasping/initialize/';
+    working_dir = '/home/robot/Documents/grasping/initialize/';
     object_file = '93_snake_final-25-Feb-2016-20-11-05.txt';
-    mesh_dir = '/home/robot/Documents/Matt/grasping/stl_files/';
+    mesh_dir = '/home/robot/Documents/grasping/data/meshes/meshes/';
     ]]
 
     config = 'gpu';
     path_sep = '/';
-    data_dir = '/scratch/mveres/grasping/grasping/collect/candidates/';
-    working_dir = '/scratch/mveres/grasping/grasping/collect/collected/';
+    data_dir = '/scratch/mveres/grasping/grasping/initialize';
+    working_dir = '/scratch/mveres/grasping/grasping/collect';
     object_file = '93_snake_final-25-Feb-2016-20-10-47.txt';
-    mesh_dir = '/mnt/data/datasets/grasping/stl_files/';
+    mesh_dir = '/home/robot/Documents/grasping/data/meshes/meshes/';
 
 
     -- Gripper properties
@@ -38,7 +38,7 @@ myconf = {
                              'BarrettHand_fingerTipSensor1',
                              'BarrettHand_fingerTipSensor2'};
 
-    gripper_finger_angles = {0, 22.5, 45}; -- can be a list of rotations {0,
+    gripper_finger_angles = {0, 0, 0}; -- Can be arbitrary angles
     palm_distances = {0.04, 0.07, 0.10};
     contact_proximity_sensor = 'contactPointProximitySensor';
 
@@ -68,7 +68,7 @@ myconf = {
     maxJerk={0.2,0.2,0.2,1.0};
 
     -- Data initialization config
-    object_list_file = 'all_objects.txt';
+    object_list_file = 'objects.txt';
 }
 
 

@@ -44,7 +44,7 @@ image_mean = []
 
 
 GLOBAL_SAVE_DIR = '/scratch/mveres/predictions'
-GLOBAL_DATAFILE = '/scratch/mveres/ttv_localencode_v40.hdf5'
+GLOBAL_DATAFILE = '/scratch/mveres/scene_v41.hdf5'
 
 # NOTE: Images were clipped in sim to be between (0.1, 0.75)
 def transform_images(images, compute_new=False):
@@ -355,7 +355,6 @@ def train(network, X_train, X_test, X_val, params, train_fcns):
         train_batches, valid_batches = 0, 0
         indices = np.arange(train_image.shape[0])
 
-        '''
         for batch in iterate_minibatches(indices, batch_size, True):
            
             err = train_fcn(train_image[batch], train_grasp[batch])
@@ -370,6 +369,7 @@ def train(network, X_train, X_test, X_val, params, train_fcns):
             train_err += err
             train_batches += 1
         train_loss=train_err/(train_batches*batch_size) 
+        '''
 
         # Check validation stats
         valid_loss = 10000
@@ -390,7 +390,7 @@ def train(network, X_train, X_test, X_val, params, train_fcns):
 
 
         # Estimate the conditional likelihood and use for early stopping
-        check_validation = epoch >= 30 and epoch%2 == 0
+        check_validation = epoch >= 20 and epoch%2 == 0
         valid_cll = 100000
         if check_validation:
             valid_cll = conditional_likelihood(cll_fcn, valid_image, valid_grasp)
@@ -708,17 +708,17 @@ if __name__ == '__main__':
     # NOTE: To try:
     # Instead of using a prediction net, i.e. p(y|x), just use pathway 
 
-    z_dim = 3 
-    y_dim = 6 
-    x1_filts = [16, 16, 32, 32, 64, 64, 64, 64, 64, 64]
-    x1_fsize = [3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
+    z_dim = 6 
+    y_dim = 9 
+    x1_filts = [16, 32, 32, 64, 64]
+    x1_fsize = [3, 3, 3, 3, 3]
     n_channels = 4
     n_train = int(2**16)
 
     param_list = {
-            'model_type':'rcvae-%s'%n_train,
+            'model_type':'rcvae-v41-%s'%n_train,
             'save_weights':True,
-            'batch_size':200,
+            'batch_size':100,
             'lrate':1e-3,
             'num_epochs':100,
             'beta1':0.9,
@@ -730,12 +730,12 @@ if __name__ == '__main__':
             'r_hid_shared':[64, z_dim],  
             'p_hid_x1':[100, z_dim], 
             'd_hid_x1':[100, 18],
-            'g_hid_z':[z_dim, 6, 18],
+            'g_hid_z':[z_dim, z_dim, 18],
             'x1_shape':(None, n_channels, 128, 128),
             'y_shape':(None, 18),
             #'nonlinearity':lasagne.nonlinearities.rectify,
             'nonlinearity':lasagne.nonlinearities.LeakyRectify(0.2),
-            'regularization':'dropout',
+            'regularization':'weight_norm',
             'p':0.1, 
             'rng':None,
             'weight_file':None,
