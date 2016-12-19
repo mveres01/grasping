@@ -5,11 +5,11 @@ import pandas as pd
 GLOBAL_NUM_COMPUTE_NODES = 5
 GLOBAL_CHUNK_SIZE = 1500
 GLOBAL_MAX_TRIALS = 10000
-GLOBAL_PROJECT_DIR = '/home/robot/Documents/grasping'
+GLOBAL_PROJECT_DIR = '/scratch/mveres/grasping'
 GLOBAL_SAVE_DIR = os.path.join(GLOBAL_PROJECT_DIR, 'collect/commands')
 GLOBAL_DATA_DIR = os.path.join(GLOBAL_PROJECT_DIR, 'collect/candidates')
 
-GLOBAL_PROGRAM_NAME = '/scratch/mveres/grasping/grasping/collect/scene_v40_cameras.ttt'
+GLOBAL_PROGRAM_NAME = '/scratch/mveres/grasping/collect/scene_v40_cameras.ttt'
 
 def main():
     """Equally splits grasp candidates to check into equal number of chunks.

@@ -12,7 +12,7 @@ from mpl_toolkits.mplot3d import Axes3D
 
 from utils import plot_mesh, format_htmatrix
 
-GLOBAL_PROJECT_DIR = '/home/robot/Documents/grasping'
+GLOBAL_PROJECT_DIR = '/scratch/mveres/grasping'
 GLOBAL_MESH_DIR = os.path.join(GLOBAL_PROJECT_DIR, 'data/meshes/meshes')
 GLOBAL_SAVE_DIR = os.path.join(GLOBAL_PROJECT_DIR, 'collect/candidates')
 
@@ -266,11 +266,9 @@ def main(to_keep=-1):
         pose_path = os.path.join(GLOBAL_PROJECT_DIR, pose_path)
         data_vector = pd.read_csv(pose_path, delimiter=',')
         data_vector = (data_vector.values)[10]
-
-    #if len(sys.argv == 1):
-    #   raise Exception('No input vector specified to generate candidates.')
-    #data_vector = sys.argv[1]
-    #data_vector = data_vector.split(',')[:-1]
+    else:
+        data_vector = sys.argv[1]
+        data_vector = data_vector.split(',')[:-1]
 
     mesh_properties = get_mesh_properties(data_vector)
 
