@@ -87,13 +87,13 @@ def intersect_plane(pt_a, pt_b, pt_0, pt_1, pt_2):
 
     Parameters
     ----------
-    pt_a : a point along the line
-    pt_b : a second point along the line
-    pt_0, pt_1, pt_2 : three different points on the plane
+    pt_a : a point along the line.
+    pt_b : a second point along the line.
+    pt_0, pt_1, pt_2 : three different points on the plane.
 
     Returns
     -------
-    Point of intersect_plane if the line and plane intersect, otherwise False
+    Point of intersect_plane if the line and plane intersect, otherwise False.
     See: https://en.wikipedia.org/wiki/Line%E2%80%93plane_intersect_plane
     """
 
@@ -118,7 +118,7 @@ def intersect_plane(pt_a, pt_b, pt_0, pt_1, pt_2):
 
 
 def intersect_box(itx, bbox):
-    """Calculates whether the intersect_plane is within the bounding box"""
+    """Calculates whether the intersect_plane is within the bounding box."""
 
     if isinstance(itx, bool):
         return False

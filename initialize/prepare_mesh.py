@@ -52,16 +52,16 @@ def get_unique_objects(names, coeffs):
     return unique_idx
 
 
-def merge_parameter_files(paramdir, postfix='-params.csv'):
+def merge_parameter_files(param_dir, postfix='-params.csv'):
     """Merges all single-lined parameter files into a single file.
 
     Parameters
     ----------
-    config_param_dir : directory where all the parameter files are held
+    param_dir : directory where all the parameter files are held.
 
     Returns
     -------
-    Array containing all merged parameters
+    Array containing all merged parameters.
 
     Notes
     -----
@@ -79,7 +79,7 @@ def merge_parameter_files(paramdir, postfix='-params.csv'):
     object_files = os.listdir(config_object_dir)
     object_files = [f.split('.')[0] for f in object_files]
 
-    morph_files = os.listdir(config_param_dir)
+    morph_files = os.listdir(param_dir)
     morph_files = [f.split(postfix)[0] for f in morph_files if postfix in f]
     morph_files = list(set(morph_files) & set(object_files))
 
