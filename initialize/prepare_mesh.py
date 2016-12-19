@@ -13,43 +13,47 @@ from lib.python_config import (config_object_dir, config_param_dir,
                                config_mesh_dir, config_object_mass, 
                                config_object_density)
 
+# All meshes we process should have 24 total values associated with it
+GLOBAL_N_MORPH_PARAMS = 24
 
 def get_unique_objects(names, coeffs):
-    """Finds which objects within a class are unique, given the transforms
+    """Finds which objects within a class are unique, given the transforms.
 
     Parameters
     ----------
-    names : A list of strings (size 'n'), specifiying the meshes to process
-    coeffs : An (n,5) array of transformation coefficients
+    names : A list of strings (size 'n'), specifiying the meshes to process.
+    coeffs : An (n,5) array of transformation coefficients.
 
     Returns
     -------
-    a list of indices specifying the unique objects in collection
+    a list of indices specifying the unique objects in collection.
     """
 
     # Find all the unique "classes" of objects
-    classes = list(set([f.split('-')[0] for f in names]))
+    names = [f.split('-')[0] for f in names]
+    names_matrix = np.asarray(names, dtype=str)
+    classes = list(set(names))
 
     unique_idx = []
-    arr = np.atleast_2d(np.arange(names.shape[0])).T
 
     for unique in classes:
 
-        # Gather all similar object classes via their index
-        cidx = [idx for idx in xrange(names.shape[0]) if unique in names[idx]]
+        # Find all objects that belong to a specific class
+        class_idx = np.where(names_matrix == unique)[0]
 
         # Remove any class objects that were morphed using the same parameters
-        class_coefficients = pd.DataFrame(coeffs[cidx]).drop_duplicates()
+        coefficients_df = pd.DataFrame(coeffs[class_idx]).drop_duplicates()
+    
+        # We'll save these unique indices
+        unique_indices = coefficients_df.index.values
+        unique_idx.append(class_idx[unique_indices])
 
-        unique_indices = class_coefficients.index.values
-        unique_idx.append(arr[cidx][unique_indices])
-
-    unique_idx = np.vstack(unique_idx).flatten()
+    unique_idx = np.hstack(unique_idx).flatten()
     return unique_idx
 
 
 def merge_parameter_files(paramdir, postfix='-params.csv'):
-    """Merges all single-lined parameter files into a single file
+    """Merges all single-lined parameter files into a single file.
 
     Parameters
     ----------
@@ -80,9 +84,8 @@ def merge_parameter_files(paramdir, postfix='-params.csv'):
     morph_files = list(set(morph_files) & set(object_files))
 
 
-    n_var = 24
     file_count = 0
-    morph_data = np.zeros((len(morph_files), n_var + 1), dtype=object)
+    morph_data = np.zeros((len(morph_files), GLOBAL_N_MORPH_PARAMS + 1), dtype=object)
     for morph_file in morph_files:
 
         # Each file should have a 1-d array of values
@@ -90,7 +93,7 @@ def merge_parameter_files(paramdir, postfix='-params.csv'):
         morph_params = pd.read_csv(fp, index_col=False, header=None).values
         morph_params = morph_params.reshape((-1,))
 
-        if morph_params.shape[0] == n_var:
+        if morph_params.shape[0] == GLOBAL_N_MORPH_PARAMS:
 
             # Append the filename to the dataframe
             row = np.hstack([morph_file.split(postfix)[0], morph_params])
@@ -134,7 +137,7 @@ def process_meshes():
             trimesh.constants.tol.merge = 1e-12
             mesh = trimesh.load_mesh(path)
         except Exception as e:
-            print 'Exception: ', e
+            print 'Exception occurred processed mesh %s (%s): '%(morph_name, e)
             continue
 
         # Fix any issues with the mesh
@@ -144,6 +147,7 @@ def process_meshes():
                 print 'Mesh %s cannot be made watertight'%morph_name
                 continue
 
+        # Then export as an STL file
         fn = os.path.join(config_mesh_dir, morph_name.split('.obj')[0])
         export_mesh(mesh, fn + '.stl', 'stl')
 
@@ -179,6 +183,7 @@ def process_meshes():
     for to_write in processed:
         writer.writerow(to_write)
     csvfile.close()
+
 
 if __name__ == '__main__':
     process_meshes()
