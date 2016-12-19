@@ -1,15 +1,22 @@
 import os
 import csv
+import h5py
 import numpy as np
 import trimesh
 from trimesh import transformations as tf
 
-from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits import mplot3d
+from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from matplotlib import pyplot as plt
 
 from PIL import Image
+
+from lib.python_config import config_mesh_dir
+
+
+def float32(x):
+    return np.float32(x)
 
 
 def calc_mesh_centroid(trimesh_mesh,  center_type='vrep'):
@@ -32,8 +39,7 @@ def plot_equal_aspect(vertices, axis):
     # http://stackoverflow.com/questions/13685386/matplotlib-equal-unit-length-with-equal-aspect-ratio-z-axis-is-not-equal-to
     """
 
-    max_dim = np.max(np.array(np.max(vertices, axis=0) - \
-                              np.min(vertices, axis=0)))
+    max_dim = np.max(np.array(np.max(vertices, axis=0) - np.min(vertices, axis=0)))
 
     mid = 0.5*np.max(vertices, axis=0) + np.min(vertices, axis=0)
     axis.set_xlim(mid[0] - max_dim, mid[0] + max_dim)
@@ -64,10 +70,9 @@ def plot_mesh(mesh_name, workspace2obj, axis=None):
         axis = Axes3D(figure)
         axis.autoscale(False)
 
-    print 'mesh_name: ',mesh_name
-
     # Load the object mesh
-    mesh = trimesh.load_mesh(mesh_name)
+    path = os.path.join(config_mesh_dir, mesh_name)
+    mesh = trimesh.load_mesh(path+'.stl')
 
     # V-REP encodes the object centroid as the literal center of the object, 
     # so we need to make sure the points are centered the same way
@@ -85,8 +90,6 @@ def plot_mesh(mesh_name, workspace2obj, axis=None):
     axis = plot_equal_aspect(mesh.vertices, axis)
 
     return axis
-
-
 
 
 def format_htmatrix(matrix_in):
@@ -254,5 +257,3 @@ def sample_poses(hdf5_file, fname, image_dir):
              [name, world2obj, world2img[:3].flatten(),
              world2cam[:3].flatten(), unproj_z, unproj_y]))
     csvfile.close()
-
-

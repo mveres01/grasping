@@ -1,19 +1,17 @@
 import os
+import sys
+sys.path.append('..')
+
 import csv
-import trimesh
 import numpy as np
 import pandas as pd
+
+import trimesh
 from trimesh.io.export import export_mesh
 
-
-# Set a constant object mass and density
-GLOBAL_MASS = 1.0
-GLOBAL_DENSITY = 1000.
-GLOBAL_MESH_EXTENSION = '.obj'
-GLOBAL_PROJECT_DIR = '/home/robot/Documents/grasping'
-GLOBAL_OBJECT_DIR = os.path.join(GLOBAL_PROJECT_DIR, 'data/meshes/object_files')
-GLOBAL_PARAM_DIR = os.path.join(GLOBAL_PROJECT_DIR, 'data/meshes/morph_files')
-GLOBAL_SAVE_DIR = os.path.join(GLOBAL_PROJECT_DIR, 'data/meshes/meshes')
+from lib.python_config import (config_object_dir, config_param_dir, 
+                               config_mesh_dir, config_object_mass, 
+                               config_object_density)
 
 
 def get_unique_objects(names, coeffs):
@@ -55,7 +53,7 @@ def merge_parameter_files(paramdir, postfix='-params.csv'):
 
     Parameters
     ----------
-    param_dir : directory where all the parameter files are held
+    config_param_dir : directory where all the parameter files are held
 
     Returns
     -------
@@ -74,10 +72,10 @@ def merge_parameter_files(paramdir, postfix='-params.csv'):
     """
 
     # Make sure we have both the object file and morph file
-    object_files = os.listdir(GLOBAL_OBJECT_DIR)
+    object_files = os.listdir(config_object_dir)
     object_files = [f.split('.')[0] for f in object_files]
 
-    morph_files = os.listdir(GLOBAL_PARAM_DIR)
+    morph_files = os.listdir(config_param_dir)
     morph_files = [f.split(postfix)[0] for f in morph_files if postfix in f]
     morph_files = list(set(morph_files) & set(object_files))
 
@@ -110,11 +108,11 @@ def merge_parameter_files(paramdir, postfix='-params.csv'):
 def process_meshes():
     """Saves a copy of each of the meshes, fixing any issues along the way."""
 
-    if not os.path.exists(GLOBAL_SAVE_DIR):
-        os.makedirs(GLOBAL_SAVE_DIR)
+    if not os.path.exists(config_mesh_dir):
+        os.makedirs(config_mesh_dir)
 
     # Each mesh has its own file, so merge them into a single structure
-    morph_names, morph_coeffs = merge_parameter_files(GLOBAL_PARAM_DIR)
+    morph_names, morph_coeffs = merge_parameter_files(config_param_dir)
 
     # Filter unique objects in a given class by looking at morph parameters
     unique_idx = get_unique_objects(morph_names, morph_coeffs)
@@ -130,7 +128,7 @@ def process_meshes():
         if len(morph_names) % 0.1*len(morph_names) == 0:
             print 'Preprocessing mesh %d/%d'%(i, len(morph_names))
 
-        path = os.path.join(GLOBAL_OBJECT_DIR, morph_name+GLOBAL_MESH_EXTENSION)
+        path = os.path.join(config_object_dir, morph_name+'.obj')
 
         try:
             trimesh.constants.tol.merge = 1e-12
@@ -146,7 +144,7 @@ def process_meshes():
                 print 'Mesh %s cannot be made watertight'%morph_name
                 continue
 
-        fn = os.path.join(GLOBAL_SAVE_DIR, morph_name.split('.obj')[0])
+        fn = os.path.join(config_mesh_dir, morph_name.split('.obj')[0])
         export_mesh(mesh, fn + '.stl', 'stl')
 
         # Calculate mesh properties using build-in functions
@@ -158,12 +156,12 @@ def process_meshes():
         # We un-do the built-in calculation (density usually considered
         # as '1'), and multiply by our defined density
         inertia /= mesh_properties['density']
-        inertia *= GLOBAL_DENSITY
+        inertia *= config_object_density
 
         # We don't want an unreasonable inertia
         inertia = np.clip(inertia, -1e-5, 1e-5)
         processed[good_mesh_cnt, 0] = morph_name
-        processed[good_mesh_cnt, 1] = GLOBAL_MASS
+        processed[good_mesh_cnt, 1] = config_object_mass
         processed[good_mesh_cnt, 2:5] = com
         processed[good_mesh_cnt, 5:14] = inertia.flatten()
 
@@ -176,7 +174,7 @@ def process_meshes():
     processed = processed[:good_mesh_cnt]
 
     # Write each row to file
-    csvfile = open(os.path.join(GLOBAL_SAVE_DIR, 'objects.txt'), 'wb')
+    csvfile = open(os.path.join(config_mesh_dir, 'mesh_object_properties.txt'), 'wb')
     writer = csv.writer(csvfile, delimiter=',')
     for to_write in processed:
         writer.writerow(to_write)

@@ -1,5 +1,7 @@
 import os
 import sys
+sys.path.append('..')
+
 import csv
 import cv2
 import h5py
@@ -10,29 +12,19 @@ from sklearn import preprocessing
 from sklearn.neighbors import NearestNeighbors
 from sklearn.decomposition import PCA
 
-from utils import format_htmatrix, format_point, invert_htmatrix
-from utils import sample_images
+from lib.utils import (format_htmatrix, format_point,  float32,
+                       invert_htmatrix, sample_images)
 
+# Object/simulation properties
+from lib.python_config import (config_image_width, config_image_height, 
+                               config_near_clip, config_far_clip, config_fov)
 
-# Raw files are hosted on the local GPU drives
-GLOBAL_PROJECT_DIR = '/home/robot/Documents/grasping'
-GLOBAL_RAW_DATA_DIR = '/scratch/mveres/collected'
-GLOBAL_PROCESSED_DIR = os.path.join(GLOBAL_PROJECT_DIR, 'data/processed')
-GLOBAL_SAMPLE_IMAGE_DIR = os.path.join(GLOBAL_PROCESSED_DIR, 'sample_images')
-GLOBAL_SAMPLE_POSE_DIR = os.path.join(GLOBAL_PROCESSED_DIR, 'sample_poses')
+# Save/data directories
+from lib.python.config import (config_collected_dir, config_processed_data_dir,
+                               config_collected_data_dir,
+                               config_sample_image_dir, config_sample_pose_dir)
 
-GLOBAL_IMAGE_WIDTH = 128
-GLOBAL_IMAGE_HEIGHT = 128
-GLOBAL_NEAR_CLIP = 0.01
-GLOBAL_FAR_CLIP = 0.7
-GLOVAL_FOV = 50.*np.pi/180.
-
-
-# Helpers
-def float32(data):
-    return np.float32(data)
-
-
+# Helper
 def reshape(data, shape=(3, 3)):
     return data.reshape(shape)
 
@@ -109,7 +101,7 @@ def get_outlier_mask(data_in, m=3):
     return mask == data_in.shape[1]
 
 
-# Assumes field of view (GLOVAL_FOVy) is given in radians
+# Assumes field of view (config_fov) is given in radians
 def unprojectPoint(px, py, depth, fov_y, image_shape):
 
     # Make sure the values are encoded as floating point numbers
@@ -193,7 +185,7 @@ def estimate_object_pose(mask, depth_image, fov_y=50*np.pi/180):
         # Get the depth information at estimated object center of mass
         # Then convert the image pixel to coordinateed realtive to camera
         depth = depth_image[i, 0, int(cy), int(cx)]
-        com = unprojectPoint(cx, cy, depth, GLOVAL_FOV, [n_rows, n_cols])
+        com = unprojectPoint(cx, cy, depth, config_fov, [n_rows, n_cols])
         unproj_z = unprojectPoint(dir_z[0], dir_z[1], depth, fov_y, [n_rows, n_cols])
         unproj_y = unprojectPoint(dir_y[0], dir_y[1], depth, fov_y, [n_rows, n_cols])
 
@@ -234,7 +226,8 @@ def estimate_object_pose(mask, depth_image, fov_y=50*np.pi/180):
             cv2.circle(img, (cx, cy), 2, 0)
             cv2.circle(img, (int(n_cols/2), int(n_rows/2)), 1, 0)
 
-            pose = os.path.join(GLOBAL_SAMPLE_POSE_DIR, '%d.png'%np.random.randint(0, 12345))
+            pose = os.path.join(config_sample_pose_dir, 
+                                '%d.png'%np.random.randint(0, 12345))
             im = Image.new('L', (n_cols, n_rows))
             im.paste(Image.fromarray(img), (0, 0, n_cols, n_rows))
             im.save(pose)
@@ -254,7 +247,6 @@ def convert_grasp_frame(frame2matrix, matrix2grasp):
     4x4 matrix, while contact normals (orientation) are multiplication of 3x3
     components (i.e. without positional components.
     """
-
 
     if frame2matrix.ndim == 1:
         frame2matrix = reshape(frame2matrix, (3, 4))
@@ -323,7 +315,7 @@ def decode_grasp(grasp_line, object_mask, object_depth_image):
 
     # Encode the grasp WRT estimated coordiante frame attached to img
     cam2img, unproj_z, unproj_y = \
-        estimate_object_pose(object_mask, object_depth_image, GLOVAL_FOV)
+        estimate_object_pose(object_mask, object_depth_image, config_fov)
 
     # Contact points, normals, and forces should be WRT world frame
     contact_points = np.hstack(
@@ -362,11 +354,11 @@ def decode_grasp(grasp_line, object_mask, object_depth_image):
             'mass_wrt_work':work2mass,
             'com_wrt_work':work2com,
             'obj_wrt_world':world2obj,
-            'workspace_wrt_world':world2work,
-            'cam_wrt_work_variant':work2cam_var,
-            'cam_wrt_work_invariant':work2cam_invar,
-            'cam_wrt_obj':obj2cam,
-            'cam_wrt_world':world2cam,
+            'frame_workspace_wrt_world':world2work,
+            'frame_cam_wrt_work_variant':work2cam_var,
+            'frame_cam_wrt_work_invariant':work2cam_invar,
+            'frame_cam_wrt_obj':obj2cam,
+            'frame_cam_wrt_world':world2cam,
             'img_wrt_cam':cam2img,
             'unproj_z':unproj_z,
             'unproj_y':unproj_y}
@@ -402,21 +394,22 @@ def parse_grasp(line, header):
 def parse_image(image_as_list, depth=False, mask=False):
     """Parses an image as either: RGB, Depth, or a mask."""
 
-    image_pixels = GLOBAL_IMAGE_WIDTH*GLOBAL_IMAGE_HEIGHT
+    image_pixels = config_image_width*config_image_height
+
     if len(image_as_list)/image_pixels < 1:
-        print 'Invalid image size (require %dx%dxn)'%(GLOBAL_IMAGE_HEIGHT,
-                                                      GLOBAL_IMAGE_WIDTH)
+        print 'Invalid image size (need %dx%dxn)'%(config_image_width, 
+                                                   config_image_height)
         return None
 
     # Convert the list into an array
     image = np.asarray(image_as_list, dtype=np.float32)
 
     # Make sure the number of channels is at the front of the matrix
-    image = image.reshape(GLOBAL_IMAGE_HEIGHT, GLOBAL_IMAGE_WIDTH, -1)
+    image = image.reshape(config_image_height, config_image_width, -1)
 
     # Decode depth info
     if depth is True:
-        image = GLOBAL_NEAR_CLIP + image*(GLOBAL_FAR_CLIP - GLOBAL_NEAR_CLIP)
+        image = config_near_clip + image*(config_far_clip - config_near_clip)
     # Convert 3 channel RGB to grayscale / binary image
     elif mask is True:
         image[image > 0] = 1.0
@@ -524,13 +517,13 @@ def decode(all_data):
 
                     elems['postgrasp']['grasp_wrt_topdown_%d'%i] = top2grasp
 
-                work2cam_var = elems['postgrasp']['cam_wrt_work_variant']
+                work2cam_var = elems['postgrasp']['frame_cam_wrt_work_variant']
                 work2cam_var = format_htmatrix(work2cam_var.reshape(3, 4))
                 cam_var_2_work = invert_htmatrix(work2cam_var)
                 elems['postgrasp']['grasp_wrt_cam_variant'] = \
                     convert_grasp_frame(cam_var_2_work, work2grasp)
 
-                work2cam_invar = elems['postgrasp']['cam_wrt_work_invariant']
+                work2cam_invar = elems['postgrasp']['frame_cam_wrt_work_invariant']
                 work2cam_invar = format_htmatrix(work2cam_invar.reshape(3, 4))
                 cam_invar_2_work = invert_htmatrix(work2cam_invar)
                 elems['postgrasp']['grasp_wrt_cam_invariant'] = \
@@ -546,13 +539,13 @@ def decode(all_data):
 
                     elems['pregrasp']['grasp_wrt_topdown_%d'%i] = top2grasp
 
-                work2cam_var = elems['pregrasp']['cam_wrt_work_variant']
+                work2cam_var = elems['pregrasp']['frame_cam_wrt_work_variant']
                 work2cam_var = format_htmatrix(work2cam_var.reshape(3, 4))
                 cam_var_2_work = invert_htmatrix(work2cam_var)
                 elems['pregrasp']['grasp_wrt_cam_variant'] = \
                     convert_grasp_frame(cam_var_2_work, work2grasp)
 
-                work2cam_invar = elems['pregrasp']['cam_wrt_work_invariant']
+                work2cam_invar = elems['pregrasp']['frame_cam_wrt_work_invariant']
                 work2cam_invar = format_htmatrix(work2cam_invar.reshape(3, 4))
                 cam_invar_2_work = invert_htmatrix(work2cam_invar)
                 elems['pregrasp']['grasp_wrt_cam_invariant'] = \
@@ -623,7 +616,7 @@ def postprocess(data, object_name):
     # ------------------- Clean the dataset --------------------------
 
     # Remove any duplicate items (i.e. using camera pose matrix)
-    unique = get_unique_idx(data['pregrasps']['cam_wrt_obj'], 2, 1e-5)
+    unique = get_unique_idx(data['pregrasps']['frame_cam_wrt_obj'], 2, 1e-5)
     data = remove_from_dataset(data, unique)
 
     if data['depth_images'].shape[0] > 50:
@@ -659,7 +652,7 @@ def postprocess(data, object_name):
 
 
     # ------------------- Save the dataset --------------------------
-    save_path = os.path.join(GLOBAL_PROCESSED_DIR, object_name+'.hdf5')
+    save_path = os.path.join(config_processed_data_dir, object_name+'.hdf5')
     datafile = h5py.File(save_path, 'w')
     datafile.create_dataset('GRIPPER_IMAGE', data=data['depth_images'])
     datafile.create_dataset('GRIPPER_IMAGE_MASK', data=data['mask_images'])
@@ -678,7 +671,7 @@ def postprocess(data, object_name):
 
     datafile.create_dataset('OBJECT_NAME', data=[object_name]*postgrasp_size)
 
-    sample_images(datafile, object_name, GLOBAL_SAMPLE_IMAGE_DIR)
+    sample_images(datafile, object_name, config_sample_image_dir)
     datafile.close()
 
     print 'Number of objects: ', postgrasp_size
@@ -721,20 +714,20 @@ def main():
        |-> Grasp attempts M:P (file)
     """
 
-    if not os.path.exists(GLOBAL_SAMPLE_IMAGE_DIR):
-        os.makedirs(GLOBAL_SAMPLE_IMAGE_DIR)
-    if not os.path.exists(GLOBAL_PROCESSED_DIR):
-        os.makedirs(GLOBAL_PROCESSED_DIR)
-    if not os.path.exists(GLOBAL_SAMPLE_POSE_DIR):
-        os.makedirs(GLOBAL_SAMPLE_POSE_DIR)
+    if not os.path.exists(config_sample_image_dir):
+        os.makedirs(config_sample_image_dir)
+    if not os.path.exists(processed_data_dir):
+        os.makedirs(processed_data_dir)
+    if not os.path.exists(sample_pose_dir):
+        os.makedirs(sample_pose_dir)
 
 
     # If we call the file just by itself, we assume we're going to perform
     # processing on each of objects tested during simulation.
     # Else, pass in a specific object/folder name, which can be found in
-    # GLOBAL_RAW_DATA_DIR
+    # collected_dir
     if len(sys.argv) == 1:
-        object_directory = os.listdir(GLOBAL_RAW_DATA_DIR)
+        object_directory = os.listdir(config_collected_dir)
     else:
         object_directory = sys.argv[1]
         object_directory = [object_directory.split('/')[-1]]
@@ -745,10 +738,10 @@ def main():
 
         try:
             print 'Processing object %d/%d: %s'%(i, num_objects, object_name)
-            direct = os.path.join(GLOBAL_RAW_DATA_DIR, object_name)
+            direct = os.path.join(config_collected_dir, object_name)
 
             # Path to .txt file and hdf5 we want to save
-            save_path = os.path.join(GLOBAL_PROCESSED_DIR, object_name+'.hdf5')
+            save_path = os.path.join(processed_data_dir, object_name+'.hdf5')
             if os.path.exists(save_path):
                 os.remove(save_path)
 

@@ -1,5 +1,7 @@
 import os
 import sys
+sys.path.append('..')
+
 import csv
 import numpy as np
 import pandas as pd
@@ -10,11 +12,9 @@ matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-from utils import plot_mesh, format_htmatrix
-
-GLOBAL_PROJECT_DIR = '/scratch/mveres/grasping'
-GLOBAL_MESH_DIR = os.path.join(GLOBAL_PROJECT_DIR, 'data/meshes/meshes')
-GLOBAL_SAVE_DIR = os.path.join(GLOBAL_PROJECT_DIR, 'collect/candidates')
+from lib.utils import plot_mesh, format_htmatrix
+from lib.python_config import (config_mesh_dir, config_candidate_dir,
+                               config_pose_path)
 
 # Controls how big the rotation angles in each direction are
 GLOBAL_X = 45
@@ -262,9 +262,7 @@ def main(to_keep=-1):
     # a row of information at a time (i.e. from collecting initial poses)
     # This is for test purposes only
     if len(sys.argv) == 1:
-        pose_path = 'initialize/initial_poses_v40.txt'
-        pose_path = os.path.join(GLOBAL_PROJECT_DIR, pose_path)
-        data_vector = pd.read_csv(pose_path, delimiter=',')
+        data_vector = pd.read_csv(config_pose_path, delimiter=',')
         data_vector = (data_vector.values)[10]
     else:
         data_vector = sys.argv[1]
@@ -289,7 +287,7 @@ def main(to_keep=-1):
     np.random.shuffle(random_idx)
 
     # Save the data
-    savefile = os.path.join(GLOBAL_SAVE_DIR, mesh_properties['name'] + '.txt')
+    savefile = os.path.join(config_candidate_dir, mesh_properties['name'] + '.txt')
     csvfile = open(savefile, 'wb')
     writer = csv.writer(csvfile, delimiter=',')
 
@@ -303,7 +301,7 @@ def main(to_keep=-1):
     # ------------------------------------------------------------------------
     # To visualize the generated candidates, we need to transform the points
     # (which are the the objects reference frame) to the workspace frame
-    mesh_path = os.path.join(GLOBAL_MESH_DIR, mesh_properties['name'] + '.stl')
+    mesh_path = os.path.join(config_mesh_dir, mesh_properties['name'] + '.stl')
     fig = plot_mesh(mesh_path, mesh_properties['work2obj'])
     plot_bbox(mesh_properties['work2obj'], mesh_properties['bbox'], axis=fig)
 
@@ -313,14 +311,14 @@ def main(to_keep=-1):
         point = np.dot(mesh_properties['work2obj'], cvt4d(points[i]))[:3]
         plot_candidate(point, axis=fig)
 
-    plt.savefig(os.path.join(GLOBAL_SAVE_DIR, mesh_properties['name'] + '.png'))
+    plt.savefig(os.path.join(config_candidate_dir, mesh_properties['name'] + '.png'))
 
 
 if __name__ == '__main__':
 
     np.random.seed(np.random.randint(1, 1234567890))
 
-    if not os.path.exists(GLOBAL_SAVE_DIR):
-        os.makedirs(GLOBAL_SAVE_DIR)
+    if not os.path.exists(config_candidate_dir):
+        os.makedirs(config_candidate_dir)
 
     main(to_keep=10000)

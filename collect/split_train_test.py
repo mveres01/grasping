@@ -1,8 +1,10 @@
 import os
 import sys
+sys.path.append('..')
+
 import csv
-import h5py
 import random
+import h5py
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -11,159 +13,159 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-sns.set(style='whitegrid')
+from lib.utils import (config_processed_data_dir, config_train_dir,
+                       config_test_dir)
 
+GLOBAL_STAT_HEADER = ['idx', 'Class', 'Train Objs', 'Train Grasps',
+                      'Train Objs', 'Test Grasps']
 
 def plot_stats(dataset_path):
+    """Given a table of dataset statistics, creates a nice bar plot."""
 
     plt.close('all')
-    df = pd.read_csv(dataset_path+'dataset_statistics.csv', index_col = False)
+    stats = pd.read_csv(dataset_path+'dataset_statistics.csv', index_col=False)
 
     # Combine the class and index so Seaborn doesn't try to replace one another
-    df['Class'] = df["idx"].map(str) +'_'+ df["Class"]
+    stats['Class'] = stats["idx"].map(str) +'_'+ stats["Class"]
 
-    df_sorted = df.sort_values(['Train Grasps'], ascending = False, inplace=False)
+    stats_sorted = stats.sort_values(['Train Grasps'], ascending=False,
+                                     inplace=False)
 
     # Initialize the matplotlib figure
-    f, ax = plt.subplots(figsize=(15, 20))
-
+    _, axis = plt.subplots(figsize=(15, 20))
 
     # Plot the total crashes
     sns.set_color_codes("pastel")
-    sns.barplot(x="Train Grasps", y="Class", data=df_sorted, ci=None,
-        label="Training Instances", color="b")
+    sns.barplot(x="Train Grasps", y="Class", data=stats_sorted,
+                ci=None, label="Training Instances", color="b")
 
     # Plot the crashes where alcohol was involved
     sns.set_color_codes("muted")
-    sns.barplot(x="Test Grasps", y="Class", data=df_sorted, ci=None,
-        label="Testing Instances", color="b")
+    sns.barplot(x="Test Grasps", y="Class", data=stats_sorted,
+                ci=None, label="Testing Instances", color="b")
 
     # Add a legend and informative axis label
-    ax.legend(ncol=2, loc="lower right", frameon=True)
-    ax.set(xlim=(0, np.max(df_sorted['Train Grasps'])), ylabel="",
-       xlabel="Number of Image and Grasp Instances")
+    axis.legend(ncol=2, loc="lower right", frameon=True)
+    axis.set(xlim=(0, np.max(stats_sorted['Train Grasps'])), ylabel="",
+             xlabel="Number of Image and Grasp Instances")
     sns.despine(left=True, bottom=True)
 
     plt.tight_layout()
     plt.savefig(dataset_path+'dataset_statistics.pdf', dpi=120)
 
 
+def count_num_grasps(list_of_objects_in_class):
+    """Given a list of objects, counts how many grasps are in each file."""
 
-def split_dataset_traintest(folder):
-    
-    root_path = '/mnt/data/datasets/grasping/'
-    data_path = os.path.join(root_path, folder)
-    train_path = os.path.join(data_path, 'train')
-    test_path = os.path.join(data_path, 'test')
+    num_grasps = np.zeros((len(list_of_objects_in_class), 1))
+    for i, object_file in enumerate(list_of_objects_in_class):
 
-    if not os.path.exists(train_path):
-        os.makedirs(train_path)
-    if not os.path.exists(test_path):
-        os.makedirs(test_path)
+        try:
+            fpath = os.path.join(config_processed_data_dir, object_file)
+            datafile = h5py.File(fpath, 'r')
+            successful_grasps = datafile['GRIPPER_IMAGE'].shape[0]
+            num_grasps[i] = successful_grasps
+            datafile.close()
+        except Exception as e:
+            print '%s \nTRAIN SPLIT ERR: '%object_file, e
+            continue
 
-    csvfile = open(data_path+'/dataset_statistics.csv','wb')
-    writer  = csv.writer(csvfile, delimiter=',')
- 
- 
-    objects = os.listdir(data_path)
-    objects = [o for o in objects if '.hdf5' in o]
-    file_ids = [f.split('_')[0] for f in objects]
+    return num_grasps
 
-    unique_ids = np.unique(file_ids)
 
-    # So we can index them quickly
-    objects = np.asarray(objects)
-    file_ids= np.asarray(file_ids)
+def split_train_test(files, array_of_grasps):
+    """Given a list of files, splits the data into train/test splits."""
 
-    # Header 
-    writer.writerow(['idx','Class','Train Objs','Train Grasps',
-                    'Train Objs','Test Grasps'])
+    good_grasps_idx = array_of_grasps > 0
+    good_grasps = array_of_grasps[good_grasps_idx].flatten()
+    good_files = files[good_grasps_idx].flatten()
+
+    # If a class only has a single object in it
+    if np.sum(good_grasps_idx) == 1:
+        test_objects = good_files
+        test_grasps = good_grasps
+        train_objects = []
+        train_grasps = [0]
+    else:
+        # Randomly select an item to be in test set
+        indices = np.arange(len(files))
+        random.shuffle(indices)
+
+        # Split train vs Test objects
+        train_objects = good_files[indices[:-1]]
+        train_grasps = good_grasps[indices[:-1]]
+        test_objects = good_files[indices[-1]].flatten()
+        test_grasps = good_grasps[indices[-1]].flatten()
+
+    return (train_objects, train_grasps), (test_objects, test_grasps)
+
+
+def main():
+    """Splits a dataset into training/testing components.
+
+    This function takes a single element from each of the object classes, and
+    places it into a 'test' folder.
+    """
+
+    if not os.path.exists(config_train_dir):
+        os.makedirs(config_train_dir)
+    if not os.path.exists(config_test_dir):
+        os.makedirs(config_test_dir)
+
+    # Get a list of all the decoded object files
+    objects = os.listdir(config_processed_data_dir)
+    objects = np.asarray([o for o in objects if '.hdf5' in o])
+    class_ids = np.asarray([f.split('_')[0] for f in objects])
+    unique_ids = np.unique(class_ids, dtype=str)
+
+    # Header
+    fpath = os.path.join(config_processed_data_dir, 'dataset_statistics.csv')
+    csvfile = open(fpath, 'wb')
+    writer = csv.writer(csvfile, delimiter=',')
+    writer.writerow(GLOBAL_STAT_HEADER)
+
+    # For each of the object classes, count how many files and total grasps
     for obj_class in unique_ids:
 
-        # Get the files belonging to each individual class
-        files = objects[file_ids[:] == str(obj_class)]
+        # Get the files belonging to each individual class, then count each #
+        files = objects[class_ids[:] == obj_class]
+        num_object_grasps = count_num_grasps(files)
 
-        # For each object in train set
-        num_grasps = []
-        for f in files:
-          
-            f = str(f) 
-            try:
-                fp = h5py.File(data_path+'/'+f, 'r')
-                successful_grasps = fp['GRIPPER_IMAGE'].shape[0]
-                num_grasps.append(successful_grasps)
-
-                fp.close()
-            except Exception as e:
-                num_grasps.append(0)
-                print '%s \nTRAIN SPLIT ERR: '%f,e 
-                continue
-
-        if len(num_grasps)==0: 
+        if len(num_object_grasps) == 0 or all(num_object_grasps == 0):
+            print 'No grasps collected for object class: %s'%obj_class
             continue
 
-        print 'num_grasps: ',num_grasps
+        files = np.vstack(files)
 
-        num_grasps = np.vstack(num_grasps).flatten()
-        files = np.vstack(files)       
+        # Make sure we've recorded an equal number of objects and grasps
+        assert files.shape[0] == num_object_grasps.shape[0]
 
-        good_grasps = num_grasps>0
-        if np.sum(good_grasps) == 0:
-            print 'No good grasps!'
-            continue
+        # Given our list of grasps, create a train/test split
+        train, test = split_train_test(files, num_object_grasps)
+        train_objects, train_grasps = train
+        test_objects, test_grasps = test
 
-        assert(files.shape[0] == num_grasps.shape[0])
-
-        grasps = num_grasps[good_grasps].flatten()
-        files  = files[good_grasps].flatten()
-
-        # If a class only has a single object in it
-        if np.sum(good_grasps)==1: 
-
-            test_objects = files
-            test_grasps = grasps
-            train_objects = [] 
-            train_grasps = [0]
-
-        else:
-
-            # Randomly select an item to be in test set
-            indices = np.arange(len(files))
-            random.shuffle(indices)
-
-            # Split train vs Test objects
-            train_objects = files[indices[:-1]]
-            train_grasps = grasps[indices[:-1]]
-
-            test_objects = files[indices[-1]].flatten()
-            test_grasps = grasps[indices[-1]].flatten()
-
-        
-        for f in train_objects:
-            os.rename(data_path+'/'+f, train_path+'/'+f)
-        for f in test_objects:
-            os.rename(data_path+'/'+f, test_path+'/'+f)
+        for obj in train_objects:
+            old_path = os.path.join(config_processed_data_dir, obj)
+            new_path = os.path.join(config_train_dir, obj)
+            os.rename(old_path, new_path)
+        for obj in test_objects:
+            old_path = os.path.join(config_processed_data_dir, obj)
+            new_path = os.path.join(config_test_dir, obj)
+            os.rename(old_path, new_path)
 
         # Write the statistics
-        if len(test_grasps) >0 and len(train_grasps)>0: 
+        if len(test_grasps) > 0 and len(train_grasps) > 0:
             writer.writerow(
-                [f.split('_')[0]] + 
-                [f.split('_')[1]] +
-                [len(train_grasps) if np.sum(train_grasps)>0 else 0] + 
-                ['%4d'%np.sum(train_grasps)] + 
-                [len(test_grasps)] + 
-                ['%4d'%np.sum(test_grasps)]) 
-
-
+                [obj_class.split('_')[0]] + # Class number
+                [obj_class.split('_')[1]] + # Class name
+                [len(train_grasps) if np.sum(train_grasps) > 0 else 0] +
+                ['%4d'%np.sum(train_grasps)] +
+                [len(test_grasps)] + # Always (at least) one file
+                ['%4d'%np.sum(test_grasps)])
+    csvfile.close()
 
 if __name__ == '__main__':
-   
-    import argparse
-    parser = argparse.ArgumentParser(description='Command line options')
-    parser.add_argument('--folder',type=str, dest='folder')
-    parser.set_defaults(folder='scene_v41') 
-    args = parser.parse_args(sys.argv[1:])
- 
-    kwargs = vars(args)
-    #split_dataset_traintest(kwargs['folder'])
-    plot_stats('/mnt/data/datasets/grasping/scene_v41/')
+
+    main()
+    #plot_stats(config_processed_data_dir)

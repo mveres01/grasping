@@ -69,7 +69,7 @@ myconf = {
     maxJerk={0.2,0.2,0.2,1.0};
 
     -- Data initialization config
-    object_list_file = 'objects.txt';
+    object_list_file = 'mesh_object_properties.txt';
 }
 
 

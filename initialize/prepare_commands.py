@@ -1,15 +1,14 @@
-import os, csv, sys
+import os
+import csv
+import sys
+sys.path.append('..')
+
 import numpy as np
 import pandas as pd
 
-GLOBAL_NUM_COMPUTE_NODES = 5
-GLOBAL_CHUNK_SIZE = 1500
-GLOBAL_MAX_TRIALS = 10000
-GLOBAL_PROJECT_DIR = '/scratch/mveres/grasping'
-GLOBAL_SAVE_DIR = os.path.join(GLOBAL_PROJECT_DIR, 'collect/commands')
-GLOBAL_DATA_DIR = os.path.join(GLOBAL_PROJECT_DIR, 'collect/candidates')
-
-GLOBAL_PROGRAM_NAME = '/scratch/mveres/grasping/collect/scene_v40_cameras.ttt'
+from lib.python_config import (config_command_dir, config_candidate_dir)
+from lib.python_config import (config_compute_nodes, config_chunk_size, 
+                               config_max_trials, config_simulation_path)
 
 def main():
     """Equally splits grasp candidates to check into equal number of chunks.
@@ -19,18 +18,18 @@ def main():
     # from memory during the simulation
     """
 
-    if not os.path.exists(GLOBAL_SAVE_DIR):
-        os.makedirs(GLOBAL_SAVE_DIR)
-    if not os.path.exists(GLOBAL_DATA_DIR):
-        os.makedirs(GLOBAL_DATA_DIR)
+    if not os.path.exists(config_command_dir):
+        os.makedirs(config_command_dir)
+    if not os.path.exists(config_candidate_dir):
+        os.makedirs(config_candidate_dir)
 
-    files = os.listdir(GLOBAL_DATA_DIR)
+    files = os.listdir(config_candidate_dir)
     files = [f for f in files if '.txt' in f and ['sample', 'poses' not in f]]
 
     data = [0]*len(files)
     for i, f in enumerate(files):
 
-        fp = os.path.join(GLOBAL_DATA_DIR, f)
+        fp = os.path.join(config_candidate_dir, f)
         df = pd.read_csv(fp, header=None, index_col=False).values
 
         # Append the name of the object and number of grasp candidates available
@@ -43,13 +42,13 @@ def main():
 
         # Only going to process a certain number of candidates, but need to
         # make sure each file contains **at most** GLOBAL_MAX_TRIAL's worth
-        num_elements= np.minimum(GLOBAL_MAX_TRIALS, mesh_object[1])
-        n_chunks = int(num_elements / GLOBAL_CHUNK_SIZE)
-        remainder = num_elements % GLOBAL_CHUNK_SIZE
+        num_elements= np.minimum(config_max_trials, mesh_object[1])
+        n_chunks = int(num_elements / config_chunk_size)
+        remainder = num_elements % config_chunk_size
 
         # This will tell the simulator a range of which lines to use
-        indices = [i*GLOBAL_CHUNK_SIZE + 1 for i in xrange(n_chunks)]
-        indices.append(n_chunks*GLOBAL_CHUNK_SIZE+remainder)
+        indices = [i*config_chunk_size + 1 for i in xrange(n_chunks)]
+        indices.append(n_chunks*config_chunk_size+remainder)
 
         # This will tel l the simulator where the lines can be found
         object_name = [mesh_object[0]]*len(indices)
@@ -61,7 +60,6 @@ def main():
     # (-s), 'input argument' (-g), and the simulation we will run.
     # Here, we give the input argument as the file contaianing grasp
     # candidates
-
     commands = [0]*len(info)
     for i, sub_cmd in enumerate(info):
 
@@ -69,26 +67,26 @@ def main():
             print '%d/%d generated'%(i, len(info))
         commands[i] = \
             'ulimit -n 4096; export DISPLAY=:1; vrep.sh -h -q -s -g%s -g%s -g%s %s '\
-            %(sub_cmd[0], sub_cmd[1], sub_cmd[2], GLOBAL_PROGRAM_NAME)
+            %(sub_cmd[0], sub_cmd[1], sub_cmd[2], config_simulation_path)
 
 
     # To parallelize our data collection routine across different compute nodes,
     # we chunk the commands again. Each compute node will be responsible for
     # running a certain number of commands.  NOTE: If we are performing
     # collection on a single compute node, then num_compute_nodes should be 1.
-    file_length = int(len(commands)/GLOBAL_NUM_COMPUTE_NODES + 0.5)
-    remainder = len(commands) % GLOBAL_NUM_COMPUTE_NODES
+    file_length = int(len(commands)/config_compute_nodes + 0.5)
+    remainder = len(commands) % config_compute_nodes
 
-    for i in xrange(GLOBAL_NUM_COMPUTE_NODES):
+    for i in xrange(config_compute_nodes):
 
-        if i == GLOBAL_NUM_COMPUTE_NODES - 1:
+        if i == config_compute_nodes - 1:
             size = range(i*file_length, (i+1)*file_length + remainder)
         else:
             size = range(i*file_length, (i+1)*file_length)
 
         # Each 'main' file contains file_length number of chunks of commands
         # that the simulator will need to run.
-        main_file = open(os.path.join(GLOBAL_SAVE_DIR, 'main%d.txt'%i), 'wb')
+        main_file = open(os.path.join(config_command_dir, 'main%d.txt'%i), 'wb')
         writer = csv.writer(main_file, delimiter=',')
 
         for row in size:
