@@ -9,8 +9,8 @@ import pandas as pd
 import trimesh
 from trimesh.io.export import export_mesh
 
-from lib.python_config import (config_object_dir, config_param_dir, 
-                               config_mesh_dir, config_object_mass, 
+from lib.python_config import (config_object_dir, config_param_dir,
+                               config_mesh_dir, config_object_mass,
                                config_object_density)
 
 # All meshes we process should have 24 total values associated with it
@@ -43,7 +43,7 @@ def get_unique_objects(names, coeffs):
 
         # Remove any class objects that were morphed using the same parameters
         coefficients_df = pd.DataFrame(coeffs[class_idx]).drop_duplicates()
-    
+
         # We'll save these unique indices
         unique_indices = coefficients_df.index.values
         unique_idx.append(class_idx[unique_indices])
@@ -89,7 +89,7 @@ def merge_parameter_files(param_dir, postfix='-params.csv'):
     for morph_file in morph_files:
 
         # Each file should have a 1-d array of values
-        fp = os.path.join(paramdir, morph_file + postfix)
+        fp = os.path.join(param_dir, morph_file + postfix)
         morph_params = pd.read_csv(fp, index_col=False, header=None).values
         morph_params = morph_params.reshape((-1,))
 

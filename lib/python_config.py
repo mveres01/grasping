@@ -1,7 +1,8 @@
 import os
 
 # Set a constant object mass and density
-project_dir = '/scratch/mveres/grasping'
+#project_dir = '/scratch/mveres/grasping'
+project_dir = '/home/robot/Documents/grasping'
 
 # Used for prepare_mesh.py
 config_object_mass = 1.0

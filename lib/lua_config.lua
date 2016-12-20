@@ -10,23 +10,27 @@ myconf = {
     mesh_dir = 'C:\\Users\\Matt\\downloads\\grasping\\data\\meshes\\meshes\\';
     ]]
 
-    --[[
+
     config = 'school';
     path_sep = '/';
-    data_dir = '/home/robot/Documents/grasping/initialize/';
-    working_dir = '/home/robot/Documents/grasping/initialize/';
-    object_file = '93_snake_final-25-Feb-2016-20-11-05.txt';
+    data_dir = '/home/robot/Documents/grasping/data/';
     mesh_dir = '/home/robot/Documents/grasping/data/meshes/meshes/';
-    ]]
+    collect_dir = '/home/robot/Documents/grasping/collect/collected/';
+    initialize_dir = '/home/robot/Documents/grasping/initialize/';
+    object_file = '93_snake_final-25-Feb-2016-20-11-05.txt';
 
-	
+
+    --[[
     config = 'gpu';
     path_sep = '/';
     data_dir = '/scratch/mveres/grasping/collect/candidates/';
     working_dir = '/scratch/mveres/grasping/data/collected/';
     object_file = '93_snake_final-25-Feb-2016-20-10-47.txt';
     mesh_dir = '/scratch/mveres/grasping/data/meshes/meshes/';
-	
+    ]]
+
+    -- Data initialization config
+    object_list_file = 'mesh_object_properties.txt';
 
     -- Gripper properties
     gripper_base = 'BarrettHand';
@@ -68,8 +72,6 @@ myconf = {
     maxAccel={0.05,0.05,0.05,0.05};
     maxJerk={0.2,0.2,0.2,1.0};
 
-    -- Data initialization config
-    object_list_file = 'mesh_object_properties.txt';
 }
 
 
