@@ -256,7 +256,10 @@ def generate_candidates(mesh_properties):
     return angles, matrices
 
 
-def main(to_keep=-1):
+def main(mesh_input_dir, candidate_output_dir, to_keep=-1):
+
+    if not os.path.exists(candidate_output_dir):
+        os.makedirs(candidate_output_dir)
 
     # We usually run this in parallel (using gnu parallel), so we pass in
     # a row of information at a time (i.e. from collecting initial poses)
@@ -287,7 +290,7 @@ def main(to_keep=-1):
     np.random.shuffle(random_idx)
 
     # Save the data
-    savefile = os.path.join(config_candidate_dir, mesh_properties['name'] + '.txt')
+    savefile = os.path.join(candidate_output_dir, mesh_properties['name'] + '.txt')
     csvfile = open(savefile, 'wb')
     writer = csv.writer(csvfile, delimiter=',')
 
@@ -301,7 +304,7 @@ def main(to_keep=-1):
     # ------------------------------------------------------------------------
     # To visualize the generated candidates, we need to transform the points
     # (which are the the objects reference frame) to the workspace frame
-    mesh_path = os.path.join(config_mesh_dir, mesh_properties['name'] + '.stl')
+    mesh_path = os.path.join(mesh_input_dir, mesh_properties['name'] + '.stl')
     fig = plot_mesh(mesh_path, mesh_properties['work2obj'])
     plot_bbox(mesh_properties['work2obj'], mesh_properties['bbox'], axis=fig)
 
@@ -311,14 +314,10 @@ def main(to_keep=-1):
         point = np.dot(mesh_properties['work2obj'], cvt4d(points[i]))[:3]
         plot_candidate(point, axis=fig)
 
-    plt.savefig(os.path.join(config_candidate_dir, mesh_properties['name'] + '.png'))
+    plt.savefig(os.path.join(candidate_output_dir, mesh_properties['name'] + '.png'))
 
 
 if __name__ == '__main__':
 
     np.random.seed(np.random.randint(1, 1234567890))
-
-    if not os.path.exists(config_candidate_dir):
-        os.makedirs(config_candidate_dir)
-
-    main(to_keep=10000)
+    main(config_mesh_dir, config_candidate_dir, to_keep=10000)
