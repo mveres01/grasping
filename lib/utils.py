@@ -21,7 +21,7 @@ def float32(x):
 
 def calc_mesh_centroid(trimesh_mesh,  center_type='vrep'):
     """Calculates the center of a mesh according to three different metrics."""
-    
+
     if center_type == 'centroid':
         return trimesh_mesh.centroid
     elif center_type == 'com':
@@ -31,10 +31,10 @@ def calc_mesh_centroid(trimesh_mesh,  center_type='vrep'):
         minv = np.min(trimesh_mesh.vertices, axis=0)
         return 0.5*(minv+maxv)
 
-    
+
 def plot_equal_aspect(vertices, axis):
     """Forces the plot to maintain an equal aspect ratio
-    
+
     # See:
     # http://stackoverflow.com/questions/13685386/matplotlib-equal-unit-length-with-equal-aspect-ratio-z-axis-is-not-equal-to
     """
@@ -49,20 +49,18 @@ def plot_equal_aspect(vertices, axis):
     axis.set_xlabel('X')
     axis.set_ylabel('Y')
     axis.set_zlabel('Z')
-    
+
     return axis
 
 
-def plot_mesh(mesh_name, workspace2obj, axis=None):
+def plot_mesh(mesh_path, workspace2obj, axis=None):
     """Visualize where we will sample grasp candidates from
 
     Parameters
     ----------
-    mesh_name : name of the mesh (assuming it can be found in given path)
+    mesh_path : path to a given mesh
     workspace2obj : 4x4 transform matrix from the workspace to object
-    obj2gripper : 4x4 transform matrix from the object to gripper
-    corners : (n,3) list of bounding box corners, in objects frame
-    points : grasp candidates where the gripper palm intersects bbox
+    axis : (optional) a matplotlib axis for plotting a figure
     """
 
     if axis is None:
@@ -71,10 +69,9 @@ def plot_mesh(mesh_name, workspace2obj, axis=None):
         axis.autoscale(False)
 
     # Load the object mesh
-    path = os.path.join(config_mesh_dir, mesh_name)
-    mesh = trimesh.load_mesh(path+'.stl')
+    mesh = trimesh.load_mesh(mesh_path)
 
-    # V-REP encodes the object centroid as the literal center of the object, 
+    # V-REP encodes the object centroid as the literal center of the object,
     # so we need to make sure the points are centered the same way
     center = calc_mesh_centroid(mesh, center_type='vrep')
     mesh.vertices -= center
@@ -93,7 +90,7 @@ def plot_mesh(mesh_name, workspace2obj, axis=None):
 
 
 def format_htmatrix(matrix_in):
-    """Formats a 3x3 rotation matrix into a 4x4 homogeneous matrix"""
+    """Formats a 3x3 rotation matrix into a 4x4 homogeneous matrix."""
 
     ht_matrix = np.eye(4)
     ht_matrix[:3] = matrix_in
@@ -101,13 +98,13 @@ def format_htmatrix(matrix_in):
 
 
 def format_point(point):
-    """Formats a 3-element [x,y,z] vector as a 4-element vector [x,y,z,1]"""
+    """Formats a 3-element [x,y,z] vector as a 4-element vector [x,y,z,1]."""
 
     return np.hstack((point,1))
 
 
 def invert_htmatrix(htmatrix):
-    """Inverts a homogeneous transformation matrix"""
+    """Inverts a homogeneous transformation matrix."""
 
     inv = np.eye(4)
     rot_T = htmatrix[:3,:3].T
@@ -117,11 +114,11 @@ def invert_htmatrix(htmatrix):
 
 
 def rot_x(theta):
-    """Builds a 3x3 rotation matrix around x
+    """Builds a 3x3 rotation matrix around x.
 
     Parameters
     ----------
-    theta : angle of rotation in degrees
+    theta : angle of rotation in degrees.
     """
 
     theta = theta*math.pi/180.
@@ -149,11 +146,11 @@ def rot_y(theta):
 
 
 def rot_z(theta):
-    """Builds a 3x3 rotation matrix around z
+    """Builds a 3x3 rotation matrix around z.
 
     Parameters
     ----------
-    theta : angle of rotation in degrees
+    theta : angle of rotation in degrees.
     """
 
     theta = theta*math.pi/180.
@@ -165,15 +162,15 @@ def rot_z(theta):
 
 
 def rxyz(thetax, thetay, thetaz):
-    """Calculates rotation matrices by multiplying in the order x,y,z
+    """Calculates rotation matrices by multiplying in the order x,y,z.
 
     Parameters
     ----------
-    thetax : rotation around x in degrees
-    thetay : rotation around y in degrees
-    thetaz : rotation around z in degrees
+    thetax : rotation around x in degrees.
+    thetay : rotation around y in degrees.
+    thetaz : rotation around z in degrees.
     """
-    
+
     # Convert radians to degrees
     rx = tf.rotation_matrix(thetax, [1,0,0])
     ry = tf.rotation_matrix(thetay, [0,1,0])
@@ -223,10 +220,10 @@ def sample_images(hdf5_file, fname, image_dir):
 
 
 def sample_poses(hdf5_file, fname, image_dir):
-    """Randomly samples a few poses from the object file
+    """Randomly samples a few poses from the object file.
 
     This function can be used to verify that we were able to accurately estimate
-    object pose from the given image
+    object pose from the given image.
     """
 
     length = hdf5_file['GRIPPER_IMAGE'].shape[0]
@@ -257,3 +254,58 @@ def sample_poses(hdf5_file, fname, image_dir):
              [name, world2obj, world2img[:3].flatten(),
              world2cam[:3].flatten(), unproj_z, unproj_y]))
     csvfile.close()
+
+
+def get_unique_idx(data_in, n_nbrs=-1, thresh=1e-4, scale=False):
+    """Finds the unique elements of a dataset using NearestNeighbors algorithm
+
+    Parameters
+    ----------
+    data_in : array of datapoints
+    n : number of nearest neighbours to find
+    thresh : float specifying how close two items must be to be considered
+        duplicates
+
+    Notes
+    -----
+    The nearest neighbour algorithm will usually flag the query datapoint
+    as being a neighbour. So we generally need n>1
+    """
+
+    from sklearn.neighbors import NearestNeighbors
+
+    if n_nbrs == -1:
+        n_nbrs = data_in.shape[0]
+    # Scale the data so points are weighted equally/dont get misrepresented
+    if scale is True:
+        from sklearn import preprocessing
+        scaler = preprocessing.StandardScaler().fit(data_in)
+        data_in = scaler.transform(data_in)
+
+    nbrs = NearestNeighbors(n_neighbors=n_nbrs, algorithm='brute').fit(data_in)
+
+    # This vector will contain a list of all indices that may be duplicated.
+    # We're going to use each datapoint as a query.
+    exclude_vector = np.zeros((data_in.shape[0],), dtype=bool)
+    for i in xrange(data_in.shape[0]):
+
+        # If we've already classified the datapoint at this index as being a
+        # duplicate, there's no reason to process it again
+        if exclude_vector[i] == True:
+            continue
+
+        # Find how close each point is to the query. If we find a point that
+        # is less then some threshold, we add it to our exlude list
+        distances, indices = nbrs.kneighbors(data_in[i:i+1])
+        distances = distances.reshape(-1)
+        indices = indices.reshape(-1)
+
+        where = np.bitwise_and(distances <= thresh, indices != i)
+
+        exclude_vector[indices[where]] = True
+
+
+    # Return a list of indices that represent unique elements of the dataset
+    return np.bitwise_not(exclude_vector)
+
+

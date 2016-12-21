@@ -263,7 +263,7 @@ def main(to_keep=-1):
     # This is for test purposes only
     if len(sys.argv) == 1:
         data_vector = pd.read_csv(config_pose_path, delimiter=',')
-        data_vector = (data_vector.values)[10]
+        data_vector = (data_vector.values)[0]
     else:
         data_vector = sys.argv[1]
         data_vector = data_vector.split(',')[:-1]

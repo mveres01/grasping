@@ -12,13 +12,12 @@ from sklearn import preprocessing
 from sklearn.neighbors import NearestNeighbors
 from sklearn.decomposition import PCA
 
-from lib.utils import (format_htmatrix, format_point,  float32,
-                       invert_htmatrix, sample_images)
+from lib.utils import (format_htmatrix, format_point, float32,
+                       invert_htmatrix, sample_images, get_unique_idx)
 
 # Object/simulation properties
-from lib.python_config import (config_image_width, config_image_height, 
+from lib.python_config import (config_image_width, config_image_height,
                                config_near_clip, config_far_clip, config_fov)
-
 # Save/data directories
 from lib.python.config import (config_collected_dir, config_processed_data_dir,
                                config_collected_data_dir,
@@ -27,53 +26,6 @@ from lib.python.config import (config_collected_dir, config_processed_data_dir,
 # Helper
 def reshape(data, shape=(3, 3)):
     return data.reshape(shape)
-
-
-def get_unique_idx(data_in, n_nbrs=2, thresh=1e-4):
-    """Finds the unique elements of a dataset using NearestNeighbors algorithm
-
-    Parameters
-    ----------
-    data_in : array of datapoints
-    n : number of nearest neighbours to find
-    thresh : float specifying how close two items must be to be considered
-        duplicates
-
-    Notes
-    -----
-    The nearest neighbour algorithm will usually flag the query datapoint
-    as being a neighbour. So we generally need n>1
-    """
-
-    if data_in.shape[0] == 1:
-        return np.asarray([True], dtype=bool)
-
-    # Scale the data so points are weighted equally/dont get misrepresented
-    scaler = preprocessing.StandardScaler().fit(data_in)
-    data_in = scaler.transform(data_in)
-    nbrs = NearestNeighbors(n_neighbors=n_nbrs, algorithm='brute').fit(data_in)
-
-
-    # This vector will contain a list of all indices that may be duplicated.
-    # We're going to use each datapoint as a query.
-    exclude_vector = np.zeros((data_in.shape[0],), dtype=bool)
-    for i in xrange(data_in.shape[0]):
-
-        # If we've already classified the datapoint at this index as being a
-        # duplicate, there's no reason to process it again
-        if exclude_vector[i:i+1] is True:
-            continue
-
-        # Find how close each point is to the query. If we find a point that
-        # is less then some threshold, we add it to our exlude list
-        distances, indices = nbrs.kneighbors(data_in[i:i+1])
-        if distances[0, 0] <= thresh and indices[0, 0] != i:
-            exclude_vector[indices[0, 0]] = True
-        if distances[0, 1] <= thresh and indices[0, 1] != i:
-            exclude_vector[indices[0, 1]] = True
-
-    # Return a list of indices that represent unique elements of the dataset
-    return np.bitwise_not(exclude_vector)
 
 
 def get_outlier_mask(data_in, m=3):
@@ -226,7 +178,7 @@ def estimate_object_pose(mask, depth_image, fov_y=50*np.pi/180):
             cv2.circle(img, (cx, cy), 2, 0)
             cv2.circle(img, (int(n_cols/2), int(n_rows/2)), 1, 0)
 
-            pose = os.path.join(config_sample_pose_dir, 
+            pose = os.path.join(config_sample_pose_dir,
                                 '%d.png'%np.random.randint(0, 12345))
             im = Image.new('L', (n_cols, n_rows))
             im.paste(Image.fromarray(img), (0, 0, n_cols, n_rows))
@@ -397,7 +349,7 @@ def parse_image(image_as_list, depth=False, mask=False):
     image_pixels = config_image_width*config_image_height
 
     if len(image_as_list)/image_pixels < 1:
-        print 'Invalid image size (need %dx%dxn)'%(config_image_width, 
+        print 'Invalid image size (need %dx%dxn)'%(config_image_width,
                                                    config_image_height)
         return None
 

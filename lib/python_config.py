@@ -13,7 +13,7 @@ config_mesh_dir = os.path.join(project_dir, 'data/meshes/meshes')
 
 # Used for prepare_candidates.py
 config_candidate_dir = os.path.join(project_dir, 'collect/candidates')
-config_pose_path = os.path.join(project_dir, 'initialize/initial_poses.txt')
+config_pose_path = os.path.join(project_dir, 'data/initial_poses.txt')
 
 # Used for prepare_commands.py
 config_compute_nodes = 5 # How many compute nodes are available
