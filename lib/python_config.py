@@ -20,7 +20,7 @@ config_compute_nodes = 5 # How many compute nodes are available
 config_chunk_size = 1500
 config_max_trials = 10000
 config_command_dir = os.path.join(project_dir, 'collect/commands')
-config_simulation_path = os.path.join(project_dir, 'collect/scene_v40_cameras.ttt')
+config_simulation_path = os.path.join(project_dir, 'collect/scene_collect_grasps.ttt')
 
 # Used for decode_grasp_data.py
 config_image_width = 128
