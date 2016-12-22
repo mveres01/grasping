@@ -1,5 +1,7 @@
 myconf = {
 
+    -- ---------- Different overall sim configurations ------------------------
+    --
     --[[
     -- Basic configuration properties
     config = 'laptop';
@@ -29,10 +31,14 @@ myconf = {
     mesh_dir = '/scratch/mveres/grasping/data/meshes/meshes/';
     ]]
 
+
+
+    -- ---------- Generally won't need to change variables below -------------
+
     -- Data initialization config
     object_list_file = 'mesh_object_properties.txt';
 
-    -- Gripper properties
+    -- Names of different gripper entities within the scene
     gripper_base = 'BarrettHand';
     gripper_palm = 'BarrettHand_PACF';
     gripper_contacts = {'BarrettHand_fingerTipSensor_respondable0',
@@ -43,21 +49,25 @@ myconf = {
                              'BarrettHand_fingerTipSensor1',
                              'BarrettHand_fingerTipSensor2'};
 
-    gripper_finger_angles = {0, 11.25, 22.5}; -- Can be arbitrary angles
+    -- A list of different possible finger spreads for Barrett Hand
+    gripper_finger_angles = {0, 11.25, 22.5};
+
+    -- How far away from the object to place the hand
     palm_distances = {0.04, 0.07, 0.10};
     contact_proximity_sensor = 'contactPointProximitySensor';
 
-
     -- Object properties
     object_material = 'usr_sticky';
+
+    -- Where the object will be dropped
     object_start_position = {0,0,0.3};
 
     -- Camera properties
     camera_resolution_x = 128;
     camera_resolution_y = 128;
-    camera_near_clip = 0.01;
-    camera_far_clip = 0.7;
-    camera_fov = 50*math.pi/180; -- camera field of view
+    camera_near_clip = 0.01;     -- Depth camera
+    camera_far_clip = 0.7;       -- Depth camera
+    camera_fov = 50*math.pi/180; -- Camera field of view
     camera_contact_offset = 0.3; -- Position of camera away from  gripper
 
 

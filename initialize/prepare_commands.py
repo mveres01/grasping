@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 from lib.python_config import (config_command_dir, config_candidate_dir)
-from lib.python_config import (config_compute_nodes, config_chunk_size, 
+from lib.python_config import (config_compute_nodes, config_chunk_size,
                                config_max_trials, config_simulation_path)
 
 def main():
@@ -25,6 +25,9 @@ def main():
 
     files = os.listdir(config_candidate_dir)
     files = [f for f in files if '.txt' in f and ['sample', 'poses' not in f]]
+
+    if len(files) == 0:
+        raise Exception('No grasp candidates to distribute across nodes')
 
     data = [0]*len(files)
     for i, f in enumerate(files):
@@ -50,7 +53,7 @@ def main():
         indices = [i*config_chunk_size + 1 for i in xrange(n_chunks)]
         indices.append(n_chunks*config_chunk_size+remainder)
 
-        # This will tel l the simulator where the lines can be found
+        # This will tell the simulator where the lines can be found
         object_name = [mesh_object[0]]*len(indices)
         info += zip(object_name, indices[:-1], indices[1:])
 
@@ -60,10 +63,11 @@ def main():
     # (-s), 'input argument' (-g), and the simulation we will run.
     # Here, we give the input argument as the file contaianing grasp
     # candidates
-    commands = [0]*len(info)
+    info_len = len(info)
+    commands = [0]*info_len
     for i, sub_cmd in enumerate(info):
 
-        if len(info) % int(len(info)*0.1) == 0:
+        if info_len >= 10 and info_len % int(info_len*0.1) == 0:
             print '%d/%d generated'%(i, len(info))
         commands[i] = \
             'ulimit -n 4096; export DISPLAY=:1; vrep.sh -h -q -s -g%s -g%s -g%s %s '\
