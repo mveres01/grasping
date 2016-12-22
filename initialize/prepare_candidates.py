@@ -261,8 +261,6 @@ def main(mesh_input_dir, candidate_output_dir, to_keep=-1):
     if not os.path.exists(candidate_output_dir):
         os.makedirs(candidate_output_dir)
 
-    print 'argc: ', sys.argv
-
     # We usually run this in parallel (using gnu parallel), so we pass in
     # a row of information at a time (i.e. from collecting initial poses)
     # This is for test purposes only

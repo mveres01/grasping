@@ -711,10 +711,5 @@ def main():
 if __name__ == '__main__':
     main()
 
-    #fpath = '/mnt/data/datasets/grasping/scene_v40/train'
-    #fname = '41_jar_and_lid_final-05-Apr-2016-14-14-31'
-    #df = os.path.join(fpath, fname+'.hdf5')
-    #dset = h5py.File(df, 'r')
-    #sample_images(dset, fname, 'temp_images')
 
 
