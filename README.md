@@ -36,12 +36,13 @@ $: cd initialize
 $: python prepare_commands.py
 ```
 ## Step 2: run the commands within the simulator
-* Launch the simulations using generated command files. This will save data to data/collected 
+* Launch the simulations using generated command files. Note that there may be some specific simulator variables you may be interested in changing (i.e. camera near/far clipping plances, which contacts are part of the gripper), which can be found inside the 'config.lua' file. The simulation will save successful grasps to the data/collected folder; launch the simulations with: 
 ```unix
 $: cd collect
 $: screen
 $: cat commands/mainXXX.txt | parallel -j N_JOBS 
 ```
+where XXX is a specific file to be run on a compute node, and N_JOBS is a number (i.e. 8), which specifies the number of jobs you want to run in parallel. If no number is specified, GNU parallel will use the maximum number of cores available
 * Once simulations are done, decode the collected data
 ```unix
 $: cd collect
