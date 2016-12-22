@@ -19,8 +19,7 @@ from lib.utils import (format_htmatrix, format_point, float32,
 from lib.python_config import (config_image_width, config_image_height,
                                config_near_clip, config_far_clip, config_fov)
 # Save/data directories
-from lib.python.config import (config_collected_dir, config_processed_data_dir,
-                               config_collected_data_dir,
+from lib.python_config import (config_collected_data_dir, config_processed_data_dir,
                                config_sample_image_dir, config_sample_pose_dir)
 
 # Helper
@@ -119,7 +118,7 @@ def estimate_object_pose(mask, depth_image, fov_y=50*np.pi/180):
 
     for i in xrange(n_samples):
 
-        if i % np.ceil(int(0.1*n_samples)) == 0:
+        if n_samples > 10 and i % int(0.1*n_samples) == 0:
             print '  Converting %d/%d'%(i, n_samples)
 
         cx, cy, coords = get_image_centroid(mask[i, 0])
@@ -668,10 +667,10 @@ def main():
 
     if not os.path.exists(config_sample_image_dir):
         os.makedirs(config_sample_image_dir)
-    if not os.path.exists(processed_data_dir):
-        os.makedirs(processed_data_dir)
-    if not os.path.exists(sample_pose_dir):
-        os.makedirs(sample_pose_dir)
+    if not os.path.exists(config_processed_data_dir):
+        os.makedirs(config_processed_data_dir)
+    if not os.path.exists(config_sample_pose_dir):
+        os.makedirs(config_sample_pose_dir)
 
 
     # If we call the file just by itself, we assume we're going to perform
@@ -679,7 +678,7 @@ def main():
     # Else, pass in a specific object/folder name, which can be found in
     # collected_dir
     if len(sys.argv) == 1:
-        object_directory = os.listdir(config_collected_dir)
+        object_directory = os.listdir(config_collected_data_dir)
     else:
         object_directory = sys.argv[1]
         object_directory = [object_directory.split('/')[-1]]
@@ -690,10 +689,10 @@ def main():
 
         try:
             print 'Processing object %d/%d: %s'%(i, num_objects, object_name)
-            direct = os.path.join(config_collected_dir, object_name)
+            direct = os.path.join(config_collected_data_dir, object_name)
 
             # Path to .txt file and hdf5 we want to save
-            save_path = os.path.join(processed_data_dir, object_name+'.hdf5')
+            save_path = os.path.join(config_processed_data_dir, object_name+'.hdf5')
             if os.path.exists(save_path):
                 os.remove(save_path)
 
