@@ -37,6 +37,7 @@ myconf = {
 
     -- Data initialization config
     object_list_file = 'mesh_object_properties.txt';
+    output_pose_file_name = 'initial_poses.txt';
 
     -- Names of different gripper entities within the scene
     gripper_base = 'BarrettHand';

@@ -86,6 +86,7 @@ def main(mesh_input_dir, mesh_output_dir):
         processed = process_mesh(mesh_path, mesh_output_dir)
         if processed is not None:
             processed_mesh_list.append(processed)
+    processed_mesh_list = np.vstack(processed_mesh_list)
 
     print '%d/%d meshes successfully processed.'%\
             (len(processed_mesh_list), len(mesh_list))
