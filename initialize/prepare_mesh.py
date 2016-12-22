@@ -9,9 +9,8 @@ import trimesh
 from trimesh.io.export import export_mesh
 
 
-from lib.python_config import (config_object_dir, config_param_dir,
-                               config_mesh_dir, config_object_mass,
-                               config_object_density)
+from lib.python_config import (config_object_dir, config_mesh_dir,
+                               config_object_mass, config_object_density)
 
 
 def process_mesh(mesh_input_path, mesh_output_dir):
@@ -64,7 +63,7 @@ def process_mesh(mesh_input_path, mesh_output_dir):
     return processed
 
 
-def main(mesh_input_dir, mesh_output_dir, mesh_param_dir=None):
+def main(mesh_input_dir, mesh_output_dir):
     """Saves a copy of each of the meshes, fixing any issues along the way."""
 
     if not os.path.exists(mesh_output_dir):
@@ -88,7 +87,7 @@ def main(mesh_input_dir, mesh_output_dir, mesh_param_dir=None):
         if processed is not None:
             processed_mesh_list.append(processed)
 
-    print '%4d/%4d meshes successfully processed.'%\
+    print '%d/%d meshes successfully processed.'%\
             (len(processed_mesh_list), len(mesh_list))
 
     # Write each row to file
@@ -100,5 +99,5 @@ def main(mesh_input_dir, mesh_output_dir, mesh_param_dir=None):
 
 
 if __name__ == '__main__':
-    main(config_object_dir, config_mesh_dir, config_param_dir)
+    main(config_object_dir, config_mesh_dir)
 

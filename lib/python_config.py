@@ -1,14 +1,13 @@
 import os
 
 # Set a constant object mass and density
-project_dir = '/scratch/mveres/grasping'
-#project_dir = '/home/robot/Documents/grasping'
+#project_dir = '/scratch/mveres/grasping'
+project_dir = '/home/robot/Documents/grasping'
 
 # Used for prepare_mesh.py
 config_object_mass = 1.0
 config_object_density = 1000.
 config_object_dir = os.path.join(project_dir, 'data/meshes/object_files')
-config_param_dir = os.path.join(project_dir, 'data/meshes/morph_files')
 config_mesh_dir = os.path.join(project_dir, 'data/meshes/meshes')
 
 # Used for prepare_candidates.py
