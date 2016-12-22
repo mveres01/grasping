@@ -47,11 +47,11 @@ where XXX is a specific file to be run on a compute node, and N_JOBS is a number
 ```unix
 $: cd collect
 ```
-.. For running sequentially: 
+.. For decoding data sequentially (class by class): 
 ```unix
 $: python decode_grasp_data.py
 ```
-.. For running in parallel: 
+.. For decoding data in parallel (multiple classes at once): 
 ```unix
 $: ls ../data/collected/ > files.txt
 $: cat files.txt | parallel python decode_grasp_data.py
