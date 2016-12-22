@@ -52,8 +52,13 @@ def get_outlier_mask(data_in, m=3):
     return mask == data_in.shape[1]
 
 
-# Assumes field of view (config_fov) is given in radians
 def unprojectPoint(px, py, depth, fov_y, image_shape):
+    """Converts a 2D point (in pixel space) to real-world 3D space.
+
+    Notes
+    -----
+    Assumes field of view (config_fov) is given in radians
+    """
 
     # Make sure the values are encoded as floating point numbers
     px = np.float32(px)
@@ -65,6 +70,7 @@ def unprojectPoint(px, py, depth, fov_y, image_shape):
 
 
 def get_image_matrix(y_axis, z_axis, center):
+    """Calculates the transformation matrix from camera to image plane."""
 
     # compute the rotational elements of the homogeneous transform matrix
     z_axis = z_axis/(np.sqrt(np.sum(z_axis**2)))
@@ -109,6 +115,14 @@ def get_image_centroid(mask):
 
 
 def estimate_object_pose(mask, depth_image, fov_y=50*np.pi/180):
+    """Given a binary image mask and depth image, calculate the object pose.
+    
+    Notes
+    -----
+    This function uses PCA to compute the major/minor axis of the object, then
+    unprojects the point back into a 3D coordinate system by building a 
+    homogeneous transofmration matrix.
+    """
 
     estimated_poses = []
     unprojected_y = []
@@ -229,8 +243,8 @@ def convert_grasp_frame(frame2matrix, matrix2grasp):
 
 
 def decode_grasp(grasp_line, object_mask, object_depth_image):
+    """Extracts different homogeneous transform matrices and grasp components."""
 
-    #if grasp_line['NumDiffObjectsColliding']>0:
     if grasp_line['AllTipsInContact'] != 1:
         return None
     elif grasp_line['NumDiffObjectsColliding'] != 0:
