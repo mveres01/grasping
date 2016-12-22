@@ -25,9 +25,43 @@ $: cd initialize
 $: python prepare_meshes.py
 ```
 * Open V-REP and run scenes/get_initial_poses.ttt. This will create a file data/initial_poses.txt that contains all information on the starting pose of the object and gripper, and will be used for generating potential grasp candidates.
-* Run initialize/prepare_candidates.py. This will read the pose information collected by V-REP, and generate a list of candidates for each object that will be tested in the simulator
+* Run initialize/prepare_candidates.py. This will read the pose information collected by V-REP, and generate a list of candidates for each object that will be tested in the simulator. Note that these candidates will be saved under collect/candidates
 ```unix
 $: cd initialize
 $: cat ../data/initial_poses.txt | parallel python prepare_meshes.py
 ```
-* Once the candidates have been generated, you can either run each of them manually through the simulation, or create a "commands" file that will continuously all of them through the simulator. To generate these commands: 
+* Once the candidates have been generated, you can either run each of them manually through the simulation, or create a "commands" file that will continuously all of them through the simulator. These commands will be saved under collect/commands
+```unix
+$: cd initialize
+$: python prepare_commands.py
+```
+## Step 2: run the commands within the simulator
+* Launch the simulations using generated command files. This will save data to data/collected 
+```unix
+$: cd collect
+$: screen
+$: cat commands/mainXXX.txt | parallel -j N_JOBS 
+```
+* Once simulations are done, decode the collected data
+```unix
+$: cd collect
+```
+.. For running sequentially: 
+```unix
+$: python decode_grasp_data.py
+```
+.. For running in parallel: 
+```unix
+$: ls ../data/collected/ > files.txt
+$: cat files.txt | parallel python decode_grasp_data.py
+```
+* Run split_train_test.py to move one file from each object class to a test directory
+```unix
+$: cd collect
+$: python split_train_test.py
+```
+* Create a list of items you want to consider in the train set, by looking at the top N classes (in the generated bar plot of grasp statistics), and save these in the file collect/train_items.txt. Run postprocess.py to generate the final grasping dataset
+```unix
+$: cd collect
+$: python postprocess_split_data.py
+```
