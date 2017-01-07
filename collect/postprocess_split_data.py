@@ -35,13 +35,16 @@ def split_dataset(n_samples, train_size=0.8, use_valid=False):
 def load_object_datasets(data_dir, data_list):
     """Given a directory, load a set of hdf5 files given as a list."""
 
-    if isinstance(data_list, list):
+    if not isinstance(data_list, list):
         data_list = [data_list]
 
     grasps, images, labels, object_props = [], [], [], []
 
+    
     for fname in data_list:
-        data = load_grasp_data(data_dir+fname)
+
+        data_path = os.path.join(data_dir, fname)
+        data = load_grasp_data(data_path)
 
         if data is None:
             print '%s no data returned!'%fname
@@ -71,9 +74,9 @@ def load_grasp_data(fname=None):
 
     # For convenience, access all of the information we'll need
     pregrasp = datafile['GRIPPER_PREGRASP']
-    grasp_wrt_cam = pregrasp['grasp_wrt_cam'][:]
+    grasp_wrt_cam = pregrasp['grasp_wrt_cam_variant'][:]
     frame_cam_wrt_obj = pregrasp['frame_cam_wrt_obj'][:]
-    frame_img_wrt_cam = pregrasp['frame_img_wrt_cam'][:]
+    frame_img_wrt_cam = pregrasp['frame_img_wrt_cam_variant'][:]
     frame_obj_wrt_world = pregrasp['frame_obj_wrt_world'][:]
     frame_workspace_wrt_world = pregrasp['frame_workspace_wrt_world'][:]
 
@@ -121,10 +124,11 @@ def split_and_save_dataset():
     for c_idx in train_list:
         object_list = [o for o in os.listdir(config_train_dir) if c_idx in o]
         train_objects += object_list
-
+        
     # For the test set, we will eventually segment into similar/different
     # classes
     test_objects = [o for o in os.listdir(config_test_dir) if '.hdf5' in o]
+
 
     print '  Loading Train data ... '
     train_data = load_object_datasets(config_train_dir, train_objects)

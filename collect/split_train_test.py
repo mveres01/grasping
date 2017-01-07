@@ -11,9 +11,10 @@ import seaborn as sns
 
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
+from matplotlib import pyplot as plt
 
-from lib.utils import (config_processed_data_dir, config_train_dir,
+
+from lib.python_config import (config_processed_data_dir, config_train_dir,
                        config_test_dir)
 
 GLOBAL_STAT_HEADER = ['idx', 'Class', 'Train Objs', 'Train Grasps',
@@ -22,8 +23,9 @@ GLOBAL_STAT_HEADER = ['idx', 'Class', 'Train Objs', 'Train Grasps',
 def plot_stats(dataset_path):
     """Given a table of dataset statistics, creates a nice bar plot."""
 
-    plt.close('all')
-    stats = pd.read_csv(dataset_path+'dataset_statistics.csv', index_col=False)
+    stats_path = os.path.join(dataset_path, 'dataset_statistics.csv')
+
+    stats = pd.read_csv(stats_path, index_col=False)
 
     # Combine the class and index so Seaborn doesn't try to replace one another
     stats['Class'] = stats["idx"].map(str) +'_'+ stats["Class"]
@@ -51,7 +53,9 @@ def plot_stats(dataset_path):
     sns.despine(left=True, bottom=True)
 
     plt.tight_layout()
-    plt.savefig(dataset_path+'dataset_statistics.pdf', dpi=120)
+
+    save_path = os.path.join(dataset_path, 'dataset_statistics.pdf')
+    plt.savefig(save_path, dpi=120)
 
 
 def count_num_grasps(list_of_objects_in_class):
@@ -116,7 +120,8 @@ def main():
     objects = os.listdir(config_processed_data_dir)
     objects = np.asarray([o for o in objects if '.hdf5' in o])
     class_ids = np.asarray([f.split('_')[0] for f in objects])
-    unique_ids = np.unique(class_ids, dtype=str)
+    class_names = np.asarray([f.split('_')[1] for f in objects])
+    unique_ids = np.unique(class_ids)
 
     # Header
     fpath = os.path.join(config_processed_data_dir, 'dataset_statistics.csv')
@@ -128,7 +133,10 @@ def main():
     for obj_class in unique_ids:
 
         # Get the files belonging to each individual class, then count each #
-        files = objects[class_ids[:] == obj_class]
+        idx_where = np.where(class_ids[:] == obj_class)
+        files = objects[idx_where]
+        obj_name = class_names[idx_where][0]
+        
         num_object_grasps = count_num_grasps(files)
 
         if len(num_object_grasps) == 0 or all(num_object_grasps == 0):
@@ -157,8 +165,8 @@ def main():
         # Write the statistics
         if len(test_grasps) > 0 and len(train_grasps) > 0:
             writer.writerow(
-                [obj_class.split('_')[0]] + # Class number
-                [obj_class.split('_')[1]] + # Class name
+                [obj_class] + # Class number
+                [obj_name] + # Class name
                 [len(train_grasps) if np.sum(train_grasps) > 0 else 0] +
                 ['%4d'%np.sum(train_grasps)] +
                 [len(test_grasps)] + # Always (at least) one file
@@ -168,4 +176,4 @@ def main():
 if __name__ == '__main__':
 
     main()
-    #plot_stats(config_processed_data_dir)
+    plot_stats(config_processed_data_dir)
