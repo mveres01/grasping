@@ -180,43 +180,38 @@ def rxyz(thetax, thetay, thetaz):
     return rxyz
 
 
-def sample_images(hdf5_file, fname, image_dir):
+def sample_images(hdf5_file, image_dir):
     """Randomly samples a few images from the object file"""
 
-    length = hdf5_file['GRIPPER_IMAGE'].shape[0]
+    length = hdf5_file['image_depth_otm'].shape[0]
 
     for idx in xrange(length):
 
         if np.random.rand() < 0.99:
             continue
 
-        image_col = np.squeeze(hdf5_file['GRIPPER_IMAGE_COLOUR'][idx])
-        image_mask = np.squeeze(hdf5_file['GRIPPER_IMAGE_MASK'][idx])
-        image_depth = np.squeeze(hdf5_file['GRIPPER_IMAGE'][idx])
+        object_name = np.squeeze(hdf5_file['object_name'][idx])[:-4]
+        image_col = np.squeeze(hdf5_file['image_colour_otm'][idx])
+        image_mask = np.squeeze(hdf5_file['image_mask_otm'][idx])
+        image_depth = np.squeeze(hdf5_file['image_depth_otm'][idx])
 
-        channels, rows, cols = image_col.shape
-
+        channels, n_rows, n_cols = image_col.shape
 
         # Convert the multi-channel images to grayscale
         image_col = image_col*255.0
-        image_col = image_col.transpose(1,2,0)
-        image_col = image_col.astype(np.uint8)
-        image_bw = Image.fromarray(image_col).convert('L')
-        image_bw = np.array(image_bw, dtype=np.float32)/255.0
+        image_col = image_col.transpose(1,2,0).astype(np.uint8)
+        image_mask = np.repeat(image_mask[:, :, np.newaxis], 3, axis=2)*255.0
+        image_depth = np.repeat(image_depth[:, :, np.newaxis], 3, axis=2)*255.0
 
-        # Get ride of channel column on depth image
-        image_depth = np.squeeze(image_depth)
+        image = np.zeros((n_rows, 3*n_cols, 3))
+        image[:n_rows, :n_cols, :] = image_col
+        image[:n_rows, n_cols:n_cols*2, :] = image_depth
+        image[:n_rows, n_cols*2:n_cols*3, :] = image_mask
 
-        # Combine them into a single image
-        im = Image.new('L',(cols*3, rows*1))
-        im.paste(Image.fromarray(np.uint8(image_bw*255.0)), \
-                                (0, 0, cols, rows))
-        im.paste(Image.fromarray(np.uint8(image_depth*255.0)),\
-                (cols, 0, cols*2,rows))
-        im.paste(Image.fromarray(np.uint8(image_mask*255.0)), \
-                (cols*2, 0, cols*3, rows))
-        obj_name = fname[:-4]
-        im.save(os.path.join(image_dir, obj_name+str(idx)+'.png'))
+        image = image.astype(np.uint8)
+        pil_image = Image.fromarray(image)
+
+        pil_image.save(os.path.join(image_dir, object_name+str(idx)+'.png'))
 
 
 def sample_poses(hdf5_file, fname, image_dir):
@@ -226,7 +221,7 @@ def sample_poses(hdf5_file, fname, image_dir):
     object pose from the given image.
     """
 
-    length = hdf5_file['GRIPPER_IMAGE'].shape[0]
+    length = hdf5_file['depth_otm'].shape[0]
 
     csvfile = open(image_dir+'sample_poses.txt','a+')
     writer = csv.writer(csvfile, delimiter=',')
@@ -236,12 +231,12 @@ def sample_poses(hdf5_file, fname, image_dir):
         if np.random.rand() < 0.99:
             continue
 
-        name = hdf5_file['OBJECT_NAME'][idx]
-        world2obj = hdf5_file['GRIPPER_PREGRASP']['world2obj'][idx]
-        obj2cam = hdf5_file['GRIPPER_PREGRASP']['obj2cam'][idx]
-        cam2img = hdf5_file['GRIPPER_PREGRASP']['cam2img'][idx]
-        unproj_z = hdf5_file['GRIPPER_PREGRASP']['unproj_z'][idx]
-        unproj_y = hdf5_file['GRIPPER_PREGRASP']['unproj_y'][idx]
+        name = hdf5_file['object_name'][idx]
+        world2obj = hdf5_file['pregrasp']['frame_world2obj'][idx]
+        obj2cam = hdf5_file['pregrasp']['frame_obj2cam_otm'][idx]
+        cam2img = hdf5_file['pregrasp']['frame_cam2img_otm'][idx]
+        unproj_z = hdf5_file['pregrasp']['unproj_z'][idx]
+        unproj_y = hdf5_file['pregrasp']['unproj_y'][idx]
 
         world2obj_mat = format_htmatrix(world2obj.reshape(3,4))
         obj2cam_mat = format_htmatrix(obj2cam.reshape(3,4))
@@ -276,6 +271,7 @@ def get_unique_idx(data_in, n_nbrs=-1, thresh=1e-4, scale=False):
 
     if n_nbrs == -1:
         n_nbrs = data_in.shape[0]
+
     # Scale the data so points are weighted equally/dont get misrepresented
     if scale is True:
         from sklearn import preprocessing

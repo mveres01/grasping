@@ -3,17 +3,16 @@ import sys
 sys.path.append('..')
 
 import csv
-import cv2
 import h5py
+
 import numpy as np
 from PIL import Image
-
-from sklearn import preprocessing
-from sklearn.neighbors import NearestNeighbors
 from sklearn.decomposition import PCA
 
-from lib.utils import (format_htmatrix, format_point, float32,
-                       invert_htmatrix, sample_images, get_unique_idx)
+import cv2
+
+from lib.utils import (format_htmatrix, invert_htmatrix,
+                       sample_images, get_unique_idx)
 
 # Object/simulation properties
 from lib.python_config import (config_image_width, config_image_height,
@@ -22,12 +21,8 @@ from lib.python_config import (config_image_width, config_image_height,
 from lib.python_config import (config_collected_data_dir, config_processed_data_dir,
                                config_sample_image_dir, config_sample_pose_dir)
 
-# Helper
-def reshape(data, shape=(3, 3)):
-    return data.reshape(shape)
 
-
-def get_outlier_mask(data_in, m=3):
+def get_outlier_mask(data_in, sigma=3):
     """Find dataset outliers by whether or not it falls within a given number
     of standard deviations from a given population
 
@@ -45,14 +40,14 @@ def get_outlier_mask(data_in, m=3):
     std = np.std(data_in, axis=0)
 
     # Create a boolean mask of data within *m* std
-    mask = abs(data_in - mean) < m*std
+    mask = abs(data_in - mean) < sigma*std
     mask = np.sum(mask, axis=1)
 
     # Want samples where all variables are within a 'good' region
     return mask == data_in.shape[1]
 
 
-def unprojectPoint(px, py, depth, fov_y, image_shape):
+def unproject_2d(point, depth, fov_y, image_shape):
     """Converts a 2D point (in pixel space) to real-world 3D space.
 
     Notes
@@ -61,8 +56,8 @@ def unprojectPoint(px, py, depth, fov_y, image_shape):
     """
 
     # Make sure the values are encoded as floating point numbers
-    px = np.float32(px)
-    py = np.float32(py)
+    px = np.float32(point[0])
+    py = np.float32(point[1])
     scene_y = -(2.*(py-0.)/image_shape[0] - 1.0)*depth*np.tan(fov_y/2.)
     scene_x = -(2.*(px-0.)/image_shape[1] - 1.0)*depth*np.tan(fov_y/2.)
 
@@ -116,93 +111,92 @@ def get_image_centroid(mask):
 
 def estimate_object_pose(mask, depth_image, fov_y=50*np.pi/180):
     """Given a binary image mask and depth image, calculate the object pose.
-    
+
     Notes
     -----
     This function uses PCA to compute the major/minor axis of the object, then
-    unprojects the point back into a 3D coordinate system by building a 
+    unprojects the point back into a 3D coordinate system by building a
     homogeneous transofmration matrix.
     """
 
-    estimated_poses = []
-    unprojected_y = []
-    unprojected_z = []
+    _, _, n_rows, n_cols = mask.shape
 
-    n_samples, _, n_rows, n_cols = mask.shape
+    if mask.ndim > 2:
+        mask_2d = np.squeeze(mask)
+    else:
+        mask_2d = mask
 
-    for i in xrange(n_samples):
+    if depth_image.ndim > 2:
+        depth_2d = np.squeeze(depth_image)
+    else:
+        depth_2d = depth_image
 
-        if n_samples > 10 and i % int(0.1*n_samples) == 0:
-            print '  Converting %d/%d'%(i, n_samples)
 
-        cx, cy, coords = get_image_centroid(mask[i, 0])
+    cx, cy, coords = get_image_centroid(np.squeeze(mask_2d))
 
-        # Estimate the major axis via principle components of the binary image
-        pca = PCA(n_components=2).fit(coords)
-        pc1 = np.asarray(pca.components_[0])
-        pc2 = np.asarray(pca.components_[1])
+    # Estimate the major axis via principle components of the binary image
+    pca = PCA(n_components=2).fit(coords)
+    pc1 = np.asarray(pca.components_[0])
+    pc2 = np.asarray(pca.components_[1])
 
-        # Use PCA estimates to compute major axes
-        c = 10.0 # arbitrary
-        dir_z = (np.floor(cx + 0.5 + pc1[0]*c), np.floor(cy + 0.5 + pc1[1]*c))
-        dir_y = (np.floor(cx + 0.5 + pc2[0]*c), np.floor(cy + 0.5 + pc2[1]*c))
+    # Use PCA estimates to compute major axes
+    c = 10.0 # arbitrary
+    dir_z = (np.round(cx + pc1[0]*c), np.round(cy + pc1[1]*c))
+    dir_y = (np.round(cx + pc2[0]*c), np.round(cy + pc2[1]*c))
 
-        # Get the depth information at estimated object center of mass
-        # Then convert the image pixel to coordinateed realtive to camera
-        depth = depth_image[i, 0, int(cy), int(cx)]
-        com = unprojectPoint(cx, cy, depth, config_fov, [n_rows, n_cols])
-        unproj_z = unprojectPoint(dir_z[0], dir_z[1], depth, fov_y, [n_rows, n_cols])
-        unproj_y = unprojectPoint(dir_y[0], dir_y[1], depth, fov_y, [n_rows, n_cols])
+    # Get the depth information at estimated object center of mass
+    # Then convert the image pixel to coordinateed realtive to camera
+    depth = depth_2d[int(cy), int(cx)]
+    com = unproject_2d([cx, cy], depth, config_fov, [n_rows, n_cols])
+    unproj_z = unproject_2d(dir_z, depth, fov_y, [n_rows, n_cols])
+    unproj_y = unproject_2d(dir_y, depth, fov_y, [n_rows, n_cols])
 
-        # Make sure the major vectors have direction only
-        z_axis = unproj_z - com
-        y_axis = unproj_y - com
+    # Make sure the major vectors have direction only
+    z_axis = unproj_z - com
+    y_axis = unproj_y - com
 
-        # Now we can build the homogeneous transform matrix
-        cam2img = get_image_matrix(y_axis, z_axis, com)
+    # Now we can build the homogeneous transform matrix
+    cam2img = get_image_matrix(y_axis, z_axis, com)
 
-        # Make sure x-axis points towards the object and not the camera. If it
-        # points towards the camera, rotation 180 degrees around z-direction
-        img2cam = invert_htmatrix(cam2img)
-        if img2cam[0, 3] > 0:
-            rmat = np.eye(4)
-            rmat[0, :2] = np.asarray([np.cos(np.pi), -np.sin(np.pi)])
-            rmat[1, :2] = np.asarray([np.sin(np.pi), np.cos(np.pi)])
-            img2cam = np.dot(rmat, img2cam)
-            cam2img = invert_htmatrix(img2cam)
+    # Make sure x-axis points towards the object and not the camera. If it
+    # points towards the camera, rotation 180 degrees around z-direction
+    img2cam = invert_htmatrix(cam2img)
+    if img2cam[0, 3] > 0:
+        rmat = np.eye(4)
+        rmat[0, :2] = np.asarray([np.cos(np.pi), -np.sin(np.pi)])
+        rmat[1, :2] = np.asarray([np.sin(np.pi), np.cos(np.pi)])
+        img2cam = np.dot(rmat, img2cam)
+        cam2img = invert_htmatrix(img2cam)
 
-        # Make sure the generated transform matrix is valid
-        det = int(0.5 + np.linalg.det(cam2img[:3, :3]))
-        if det != 1:
-            raise Exception('Index %d \nComputed determinant (%2.4f) is '\
-                            'not equal to 1.'%(i, det))
+    # Make sure the generated transform matrix is valid
+    det = int(0.5 + np.linalg.det(cam2img[:3, :3]))
+    if det != 1:
+        raise Exception('Computed determinant (%2.4f) not equal to 1.'%det)
 
-        unprojected_z.append(np.atleast_2d(unproj_z))
-        unprojected_y.append(np.atleast_2d(unproj_y))
-        estimated_poses.append(cam2img[:3].flatten())
+    unproj_z = np.atleast_2d(unproj_z)
+    unproj_y = np.atleast_2d(unproj_y)
+    cam2img = cam2img[:3].flatten()
 
-        # Check whether the selected pixel is on object using ground truth
-        if np.random.randn() > 0.99:
-            img = np.uint8((1.0 - mask[i, 0])*255.0).copy()
-            p1 = (cx + int(pc1[0]*15), cy + int(pc1[1]*15))
-            p2 = (cx + int(pc2[0]*15), cy + int(pc2[1]*15))
-            cv2.line(img, (cx, cy), p1, 125, 1)
-            cv2.line(img, (cx, cy), p2, 125, 1)
-            cv2.circle(img, (cx, cy), 2, 0)
-            cv2.circle(img, (int(n_cols/2), int(n_rows/2)), 1, 0)
 
-            pose = os.path.join(config_sample_pose_dir,
-                                '%d.png'%np.random.randint(0, 12345))
-            im = Image.new('L', (n_cols, n_rows))
-            im.paste(Image.fromarray(img), (0, 0, n_cols, n_rows))
-            im.save(pose)
+    # Check whether the selected pixel is on object using ground truth
+    if np.random.randn() > 0.99:
+        img = np.uint8((1.0 - mask_2d)*255.0).copy()
+        p1 = (cx + int(pc1[0]*15), cy + int(pc1[1]*15))
+        p2 = (cx + int(pc2[0]*15), cy + int(pc2[1]*15))
+        cv2.line(img, (cx, cy), p1, 125, 1)
+        cv2.line(img, (cx, cy), p2, 125, 1)
+        cv2.circle(img, (cx, cy), 2, 0)
+        cv2.circle(img, (int(n_cols/2), int(n_rows/2)), 1, 0)
 
-    unprojected_z = np.vstack(unprojected_z)
-    unprojected_y = np.vstack(unprojected_y)
-    estimated_poses = np.vstack(estimated_poses)
+        pose = os.path.join(config_sample_pose_dir,
+                            '%d.png'%np.random.randint(0, 12345))
 
-    return estimated_poses, unprojected_z, unprojected_y
+        pil_image = Image.new('L', (n_cols, n_rows))
+        pil_image.paste(Image.fromarray(img), (0, 0, n_cols, n_rows))
+        pil_image.save(pose)
 
+
+    return cam2img, unproj_z, unproj_y
 
 
 def convert_grasp_frame(frame2matrix, matrix2grasp):
@@ -213,25 +207,21 @@ def convert_grasp_frame(frame2matrix, matrix2grasp):
     components (i.e. without positional components.
     """
 
-    if frame2matrix.ndim == 1:
-        frame2matrix = reshape(frame2matrix, (3, 4))
-        frame2matrix = np.vstack([frame2matrix, [0, 0, 0, 1]])
-
     # A grasp is contacts, normals, and forces (3), and has (x,y,z) components
-    num_fingers = int(matrix2grasp.shape[1]/9)
-    contact_points = reshape(matrix2grasp[0, :num_fingers*3])
-    contact_normals = reshape(matrix2grasp[0, num_fingers*3:num_fingers*6])
-    contact_forces = reshape(matrix2grasp[0, num_fingers*6:])
+    n_fingers = int(matrix2grasp.shape[1]/9)
+    contact_points = matrix2grasp[0, :n_fingers*3].reshape(3, 3)
+    contact_normals = matrix2grasp[0, n_fingers*3:n_fingers*6].reshape(3, 3)
+    contact_forces = matrix2grasp[0, n_fingers*6:].reshape(3, 3)
 
     # Append a 1 to end of contacts for easier multiplication
     contact_points = np.hstack([contact_points, np.ones((3, 1))])
 
     # Convert positions, normals, and forces to object reference frame
-    points = np.zeros((num_fingers, 3))
+    points = np.zeros((n_fingers, 3))
     forces = np.zeros(points.shape)
     normals = np.zeros(points.shape)
 
-    for i in xrange(num_fingers):
+    for i in xrange(n_fingers):
 
         points[i] = np.dot(frame2matrix, contact_points[i:i+1].T)[:3].T
         forces[i] = np.dot(frame2matrix[:3, :3], contact_forces[i:i+1].T).T
@@ -257,31 +247,6 @@ def decode_grasp(grasp_line, object_mask, object_depth_image):
     if fs0 != 1 or fs1 != 1 or fs2 != 1:
         raise Exception('Force sensor was broken. Should not have happened.')
 
-    #workspace_to_base = g['BarrettHand'][i]
-    work2obj = grasp_line['object_matrix'].reshape(3, 4)
-    work2obj = format_htmatrix(work2obj)
-    obj2work = invert_htmatrix(work2obj)
-
-    world2work = grasp_line['wrtObjectMatrix'].reshape(3, 4)
-    world2work = format_htmatrix(world2work)
-    work2world = invert_htmatrix(world2work)
-
-    work2cam = grasp_line['cameraMatrix'].reshape(3, 4)
-    work2cam = format_htmatrix(work2cam)
-    cam2work = invert_htmatrix(work2cam)
-
-    work2cam_var = np.atleast_2d(grasp_line['rot_variant_matrix'])
-    work2cam_invar = np.atleast_2d(grasp_line['rot_invariant_matrix'])
-
-    obj2cam = np.dot(obj2work, work2cam)
-    obj2world = np.dot(obj2work, work2world)
-    cam2world = np.dot(cam2work, work2world)
-    world2obj = invert_htmatrix(obj2world)
-
-    # Encode the grasp WRT estimated coordiante frame attached to img
-    cam2img, unproj_z, unproj_y = \
-        estimate_object_pose(object_mask, object_depth_image, config_fov)
-
     # Contact points, normals, and forces should be WRT world frame
     contact_points = np.hstack(
         [grasp_line['contactPoint0'],
@@ -298,33 +263,76 @@ def decode_grasp(grasp_line, object_mask, object_depth_image):
          grasp_line['contactForce1'],
          grasp_line['contactForce2']])
 
+    # Encode the grasp into the workspace frame
     world2grasp = np.hstack([contact_points, contact_normals, contact_forces])
     world2grasp = np.atleast_2d(world2grasp)
 
-    work2grasp = convert_grasp_frame(work2world, world2grasp)
+    # These object properties are encoded WRT workspace
+    work2com = grasp_line['com']
+    work2mass = grasp_line['mass']
+    work2inertia = grasp_line['inertia']
 
-    work2com = np.atleast_2d(format_point(grasp_line['com']))
-    work2mass = reshape(grasp_line['mass'], (1, 1))
-    work2inertia = reshape(grasp_line['inertia'], (1, 9))
+    #workspace_to_base = g['BarrettHand'][i]
+    work2obj = grasp_line['object_matrix'].reshape(3, 4)
+    work2obj = format_htmatrix(work2obj)
+    obj2work = invert_htmatrix(work2obj)
+
+    world2work = grasp_line['wrtObjectMatrix'].reshape(3, 4)
+    world2work = format_htmatrix(world2work)
+    work2world = invert_htmatrix(world2work)
+
+    # Camera frame that doesn't change rotation (one image many grasps)
+    work2cam_otm = grasp_line['rot_variant_matrix'].reshape(3, 4)
+    work2cam_otm = format_htmatrix(work2cam_otm)
+    cam2work_otm = invert_htmatrix(work2cam_otm)
+
+    # Camera frame that changes rotation (one image to one grasp)
+    work2cam_oto = grasp_line['rot_invariant_matrix'].reshape(3, 4)
+    work2cam_oto = format_htmatrix(work2cam_oto)
+    cam2work_oto = invert_htmatrix(work2cam_oto)
+
+    # Some misc frames that will be helpful later
+    obj2world = np.dot(obj2work, work2world)
+    world2obj = invert_htmatrix(obj2world)
+    obj2cam = np.dot(obj2work, work2cam_otm)
+
+    # Encode the grasp WRT estimated coordiante frame attached to img
+    # unproj_z/y are points in 3D space showing the direction of x/y axes
+    cam2img, unproj_z, unproj_y = \
+        estimate_object_pose(object_mask, object_depth_image, config_fov)
+
+    # ### finally, convert the grasp frames
+    work2grasp = convert_grasp_frame(work2world, world2grasp)
+    cam2grasp_oto = convert_grasp_frame(cam2work_oto, work2grasp)
+    cam2grasp_otm = convert_grasp_frame(cam2work_otm, work2grasp)
 
     # Make sure everything is the right dimension so we can later concatenate
+    work2com = np.atleast_2d(grasp_line['com'])
+    work2mass = np.atleast_2d(work2mass)
+    work2inertia = np.atleast_2d(work2inertia)
+
+    cam2img = np.atleast_2d(cam2img)
     obj2cam = np.atleast_2d(obj2cam[:3].flatten())
-    world2cam = invert_htmatrix(cam2world)
-    world2cam = np.atleast_2d(world2cam[:3].flatten())
     world2obj = np.atleast_2d(world2obj[:3].flatten())
     world2work = np.atleast_2d(world2work[:3].flatten())
+    cam2work_oto = np.atleast_2d(cam2work_oto[:3].flatten())
+    cam2work_otm = np.atleast_2d(cam2work_otm[:3].flatten())
+    work2cam_oto = np.atleast_2d(work2cam_oto[:3].flatten())
+    work2cam_otm = np.atleast_2d(work2cam_otm[:3].flatten())
 
-    return {'grasp_wrt_work':work2grasp,
-            'inertia_wrt_work':work2inertia,
-            'mass_wrt_work':work2mass,
-            'com_wrt_work':work2com,
-            'obj_wrt_world':world2obj,
-            'frame_workspace_wrt_world':world2work,
-            'frame_cam_wrt_work_variant':work2cam_var,
-            'frame_cam_wrt_work_invariant':work2cam_invar,
-            'frame_cam_wrt_obj':obj2cam,
-            'frame_cam_wrt_world':world2cam,
-            'img_wrt_cam':cam2img,
+    return {'work2grasp':work2grasp,
+            'cam2grasp_oto':cam2grasp_oto,
+            'cam2grasp_otm':cam2grasp_otm,
+            'work2inertia':work2inertia,
+            'work2mass':work2mass,
+            'work2com':work2com,
+            'frame_world2obj':world2obj,
+            'frame_world2work':world2work,
+            'frame_work2cam_otm':work2cam_otm,
+            'frame_work2cam_oto':work2cam_oto,
+            'frame_cam2work_otm':cam2work_otm,
+            'frame_cam2work_oto':cam2work_oto,
+            'frame_cam2img_otm':cam2img,
             'unproj_z':unproj_z,
             'unproj_y':unproj_y}
 
@@ -368,19 +376,19 @@ def parse_image(image_as_list, depth=False, mask=False):
 
     # Convert the list into an array
     image = np.asarray(image_as_list, dtype=np.float32)
-
-    # Make sure the number of channels is at the front of the matrix
     image = image.reshape(config_image_height, config_image_width, -1)
 
-    # Decode depth info
+    # Decode the depth information using near + far clipping planes
     if depth is True:
         image = config_near_clip + image*(config_far_clip - config_near_clip)
-    # Convert 3 channel RGB to grayscale / binary image
+
+    # Since the "binary mask" saaved from simulator is 3-channeled, convert
+    # this to a single channel image
     elif mask is True:
         image[image > 0] = 1.0
-        image = 1.0 -image[:, :, 0:1]
+        image = 1.0 -image [:, :, 0:1]
 
-    # Need to flip each channel upside down, due to encoding by VREP
+    # Need to flip the image upside down due to encoding from sim 
     for i in xrange(image.shape[2]):
         image[:, :, i] = np.flipud(image[:, :, i])
 
@@ -391,12 +399,14 @@ def parse_image(image_as_list, depth=False, mask=False):
     return image
 
 
-def decode(all_data):
+def decode_raw_data(all_data):
     """Primary function that decodes collected simulated data."""
 
     # Initialize elements to be None
-    keys = ['header', 'depth', 'colour', 'mask', 'pregrasp',
-            'postgrasp', 'direct_depth', 'direct_colour']
+    # Note that "OTO" means the image and gripper share a one-to-one mapping
+    # Note that "OTM" means the image and gripper share a one-to-many mapping
+    keys = ['header', 'depth_oto', 'colour_oto', 'depth_otm',
+            'colour_otm', 'mask_otm', 'pregrasp', 'postgrasp']
 
     misc_keys = ['depth', 'colour', 'matrix']
 
@@ -405,66 +415,72 @@ def decode(all_data):
     elems = dict.fromkeys(keys, None)
     top_elems = dict.fromkeys(misc_keys, None)
 
-    count = 0
+
+    # ---------------- Loop through all recorded data ------------------------
+
+    count = 0 # which attempt
+    successful = 0 # how many successful attempts
     for i, line in enumerate(all_data):
 
-        # First item of a line is always what the line represents (e.g.
-        # image/grasp/header)
+        # First item of a line is always what the line represents
+        # (e.g. an image/grasp/header)
         data_type = line[0]
         data = line[1:-1]
 
-        if 'TOPDOWN_DEPTH' in data_type: # Same orientation as manipulator
+
+        # Before we collect grasp data, we collect some images of the object
+        # from cameras in fixed locations above the workspace
+        if 'TOPDOWN_DEPTH' in data_type:
             if top_elems['depth'] is None:
                 top_elems['depth'] = []
 
             # Once we hit this, we should not have any more generic images
-            if len(decoded['depth']) == 0:
+            if len(decoded['depth_otm']) == 0:
                 top_elems['depth'].append(parse_image(data, depth=True))
 
-        elif 'TOPDOWN_COLOUR' in data_type: # Same orientation as manipulator
+        elif 'TOPDOWN_COLOUR' in data_type:
             if top_elems['colour'] is None:
                 top_elems['colour'] = []
 
-            # Once we hit this, we should not have any more generic images
-            if len(decoded['depth']) == 0:
+            if len(decoded['depth_otm']) == 0:
                 top_elems['colour'].append(parse_image(data))
 
-        elif 'TOPDOWN_MATRIX' in data_type: # Same orientation as manipulator
+        elif 'TOPDOWN_MATRIX' in data_type:
             if top_elems['matrix'] is None:
                 top_elems['matrix'] = []
 
-            # Once we hit this, we should not have any more generic images
-            if len(decoded['depth']) == 0:
+            if len(decoded['depth_otm']) == 0:
                 top_elems['matrix'].append(np.atleast_2d(data))
 
+        # Once we're collecting data, we encoded it using the following terms.
         # Prefix 'DIRECT' indicates same orientation as gripper
         elif data_type == 'DIRECT_DEPTH':
-            elems['direct_depth'] = parse_image(data, depth=True)
+            elems['depth_oto'] = parse_image(data, depth=True)
 
         elif data_type == 'DIRECT_COLOUR':
-            elems['direct_colour'] = parse_image(data)
+            elems['colour_oto'] = parse_image(data)
 
         # No prefix inficates that image y-direction always points upwards
         elif data_type == 'GRIPPER_HEADER':
             elems['header'] = data
 
         elif data_type == 'GRIPPER_IMAGE': # Depth image
-            elems['depth'] = parse_image(data, depth=True)
+            elems['depth_otm'] = parse_image(data, depth=True)
 
         elif data_type == 'GRIPPER_IMAGE_COLOUR':
-            elems['colour'] = parse_image(data)
+            elems['colour_otm'] = parse_image(data)
 
         elif data_type == 'GRIPPER_MASK_IMAGE':
-            elems['mask'] = parse_image(data, mask=True)
+            elems['mask_otm'] = parse_image(data, mask=True)
 
         elif data_type == 'GRIPPER_PREGRASP':
             grasp = parse_grasp(data, elems['header'])
-            preg = decode_grasp(grasp, elems['mask'], elems['depth'])
+            preg = decode_grasp(grasp, elems['mask_otm'], elems['depth_otm'])
             elems['pregrasp'] = preg
 
         elif data_type == 'GRIPPER_POSTGRASP':
             grasp = parse_grasp(data, elems['header'])
-            postg = decode_grasp(grasp, elems['mask'], elems['depth'])
+            postg = decode_grasp(grasp, elems['mask_otm'], elems['depth_otm'])
             elems['postgrasp'] = postg
 
             # Check we've retrieved an element for each component
@@ -473,66 +489,22 @@ def decode(all_data):
             count += 1
             if all(elems[k] is not None for k in keys):
 
-                # Postgrasp
-                work2grasp = elems['postgrasp']['grasp_wrt_work']
-                for i, mtx in enumerate(top_elems['matrix']):
-                    work2top = format_htmatrix(mtx.reshape(3, 4))
-                    top2work = invert_htmatrix(work2top)
-                    top2grasp = convert_grasp_frame(top2work, work2grasp)
-
-                    elems['postgrasp']['grasp_wrt_topdown_%d'%i] = top2grasp
-
-                work2cam_var = elems['postgrasp']['frame_cam_wrt_work_variant']
-                work2cam_var = format_htmatrix(work2cam_var.reshape(3, 4))
-                cam_var_2_work = invert_htmatrix(work2cam_var)
-                elems['postgrasp']['grasp_wrt_cam_variant'] = \
-                    convert_grasp_frame(cam_var_2_work, work2grasp)
-
-                work2cam_invar = elems['postgrasp']['frame_cam_wrt_work_invariant']
-                work2cam_invar = format_htmatrix(work2cam_invar.reshape(3, 4))
-                cam_invar_2_work = invert_htmatrix(work2cam_invar)
-                elems['postgrasp']['grasp_wrt_cam_invariant'] = \
-                    convert_grasp_frame(cam_invar_2_work, work2grasp)
-
-
-                # Pregrasp
-                work2grasp = elems['pregrasp']['grasp_wrt_work']
-                for i, mtx in enumerate(top_elems['matrix']):
-                    work2top = format_htmatrix(mtx.reshape(3, 4))
-                    top2work = invert_htmatrix(work2top)
-                    top2grasp = convert_grasp_frame(top2work, work2grasp)
-
-                    elems['pregrasp']['grasp_wrt_topdown_%d'%i] = top2grasp
-
-                work2cam_var = elems['pregrasp']['frame_cam_wrt_work_variant']
-                work2cam_var = format_htmatrix(work2cam_var.reshape(3, 4))
-                cam_var_2_work = invert_htmatrix(work2cam_var)
-                elems['pregrasp']['grasp_wrt_cam_variant'] = \
-                    convert_grasp_frame(cam_var_2_work, work2grasp)
-
-                work2cam_invar = elems['pregrasp']['frame_cam_wrt_work_invariant']
-                work2cam_invar = format_htmatrix(work2cam_invar.reshape(3, 4))
-                cam_invar_2_work = invert_htmatrix(work2cam_invar)
-                elems['pregrasp']['grasp_wrt_cam_invariant'] = \
-                    convert_grasp_frame(cam_invar_2_work, work2grasp)
-
-
                 for k in elems.keys():
-                    if 'header' in k:
-                        continue
-                    decoded[k].append(elems[k])
+                    if 'header' not in k:
+                        decoded[k].append(elems[k])
 
-                decoded_len = len(decoded['depth'])
-                if decoded_len % 50 == 0:
-                    print 'Successful grasp #%4d/%4d'%(decoded_len, count)
+                successful += 1
+                if successful % 50 == 0:
+                    print 'Successful grasp #%4d/%4d'%(successful, count)
 
             # Reset the elements to be None
             elems.update(dict.fromkeys(elems.keys(), None))
         else:
             raise Exception('Data type: %s not understood'%data_type)
 
+
     # Quick check to see that we've decoded something
-    if len(decoded['depth']) == 0:
+    if len(decoded['depth_otm']) == 0:
         return False
 
     # Go through the collected pregrasp/postgrasp arrays, and combine each of
@@ -548,19 +520,18 @@ def decode(all_data):
                 key_size = pregrasp[key].shape[1]
                 pregrasp_dict[key] = np.empty((len(grasps), key_size))
                 postgrasp_dict[key] = np.empty((len(grasps), key_size))
-
+        
         for key in pregrasp.keys():
             pregrasp_dict[key][i] = pregrasp[key]
             postgrasp_dict[key][i] = postgrasp[key]
 
-
-    return {'depth_images':np.vstack(decoded['depth']),
-            'mask_images':np.vstack(decoded['mask']),
-            'colour_images':np.vstack(decoded['colour']),
-            'direct_depth':np.vstack(decoded['direct_depth']),
-            'direct_colour':np.vstack(decoded['direct_colour']),
-            'pregrasps':pregrasp_dict,
-            'postgrasps':postgrasp_dict}
+    return {'image_depth_oto':np.vstack(decoded['depth_oto']),
+            'image_colour_oto':np.vstack(decoded['colour_oto']),
+            'image_depth_otm':np.vstack(decoded['depth_otm']),
+            'image_colour_otm':np.vstack(decoded['colour_otm']),
+            'image_mask_otm':np.vstack(decoded['mask_otm']),
+            'pregrasp':pregrasp_dict,
+            'postgrasp':postgrasp_dict}
 
 
 def postprocess(data, object_name):
@@ -580,63 +551,60 @@ def postprocess(data, object_name):
 
     # ------------------- Clean the dataset --------------------------
 
-    # Remove any duplicate items (i.e. using camera pose matrix)
-    unique = get_unique_idx(data['pregrasps']['frame_cam_wrt_obj'], 2, 1e-5)
+    # -- Remove duplicate grasps using workspace --> camera frame
+    unique = get_unique_idx(data['pregrasp']['frame_work2cam_oto'], -1, 1e-5)
     data = remove_from_dataset(data, unique)
 
-    if data['depth_images'].shape[0] > 50:
+    if data['image_depth_otm'].shape[0] > 50:
+
+        # -- Remove any images with no interesting information
+        good_indices = np.var(data['image_depth_otm'], axis=(1, 2, 3)) > 1e-3
+        data = remove_from_dataset(data, good_indices)
 
         # -- Image minimum values (i.e. don't want to look through table)
-        image_minvals = np.amin(data['depth_images'], axis=(1, 2, 3))
+        image_minvals = np.amin(data['image_depth_otm'], axis=(1, 2, 3))
+        good_indices = get_outlier_mask(image_minvals, sigma=3)
+        data = remove_from_dataset(data, good_indices)
 
-        image_outlier_mask = get_outlier_mask(image_minvals, m=3)
-        data = remove_from_dataset(data, image_outlier_mask)
+        # -- Remove any super wild grasps
+        good_indices = get_outlier_mask(data['pregrasp']['work2grasp'], sigma=4)
+        data = remove_from_dataset(data, good_indices)
 
-        # -- Image variance (don't want image filling entire screen)
-        image_var_mask = np.var(data['depth_images'], axis=(1, 2, 3)) > 1e-3
-        data = remove_from_dataset(data, image_var_mask)
-
-        # -- Encoded grasp outliers (i.e. don't want extremely different gr)
-        grasp_mask = get_outlier_mask(data['pregrasps']['grasp_wrt_work'], m=3)
-        data = remove_from_dataset(data, grasp_mask)
-
-        if data['depth_images'].shape[0] == 0:
+        if data['image_depth_otm'].shape[0] == 0:
             return
 
+    # Make sure we have the same number of samples for all data elements
+    to_check = ['image_depth_otm', 'image_colour_otm', 'image_mask_otm',
+                'image_depth_oto', 'image_colour_oto']
 
-    pregrasp_size = data['pregrasps']['grasp_wrt_work'].shape[0]
-    postgrasp_size = data['postgrasps']['grasp_wrt_work'].shape[0]
+    keys = data['pregrasp'].keys()
+    pregrasp_size = data['pregrasp']['work2grasp'].shape[0]
+    postgrasp_size = data['postgrasp']['work2grasp'].shape[0]
 
-    to_check = ['depth_images', 'colour_images', 'mask_images']
-    assert(all(data[key].shape[0] == pregrasp_size for key in to_check))
-
-    assert(all(pregrasp_size == data['pregrasps'][k].shape[0] for \
-            k in data['pregrasps'].keys()) and \
-           all(postgrasp_size == data['postgrasps'][k].shape[0] for \
-            k in data['postgrasps'].keys()))
-
+    assert all(data[key].shape[0] == pregrasp_size for key in to_check)
+    assert all(pregrasp_size == data['pregrasp'][k].shape[0] for k in keys)
+    assert all(postgrasp_size == data['postgrasp'][k].shape[0] for k in keys)
 
     # ------------------- Save the dataset --------------------------
     save_path = os.path.join(config_processed_data_dir, object_name+'.hdf5')
+
     datafile = h5py.File(save_path, 'w')
-    datafile.create_dataset('GRIPPER_IMAGE', data=data['depth_images'])
-    datafile.create_dataset('GRIPPER_IMAGE_MASK', data=data['mask_images'])
-    datafile.create_dataset('GRIPPER_IMAGE_COLOUR', data=data['colour_images'])
-    datafile.create_dataset('DIRECT_IMAGE', data=data['direct_depth'])
-    datafile.create_dataset('DIRECT_COLOUR', data=data['direct_colour'])
+    datafile.create_dataset('image_depth_otm', data=data['image_depth_otm'])
+    datafile.create_dataset('image_depth_oto', data=data['image_depth_oto'])
+    datafile.create_dataset('image_colour_otm', data=data['image_colour_otm'])
+    datafile.create_dataset('image_colour_oto', data=data['image_colour_oto'])
+    datafile.create_dataset('image_mask_otm', data=data['image_mask_otm'])
+    datafile.create_dataset('object_name', data=[object_name]*postgrasp_size)
 
+    grasp_group = datafile.create_group('pregrasp')
+    for key in data['pregrasp'].keys():
+        grasp_group.create_dataset(key, data=data['pregrasp'][key])
 
-    gr = datafile.create_group('GRIPPER_PREGRASP')
-    for key in data['pregrasps'].keys():
-        gr.create_dataset(key, data=data['pregrasps'][key])
+    grasp_group = datafile.create_group('postgrasp')
+    for key in data['postgrasp'].keys():
+        grasp_group.create_dataset(key, data=data['postgrasp'][key])
 
-    gr = datafile.create_group('GRIPPER_POSTGRASP')
-    for key in data['postgrasps'].keys():
-        gr.create_dataset(key, data=data['postgrasps'][key])
-
-    datafile.create_dataset('OBJECT_NAME', data=[object_name]*postgrasp_size)
-
-    sample_images(datafile, object_name, config_sample_image_dir)
+    sample_images(datafile, config_sample_image_dir)
     datafile.close()
 
     print 'Number of objects: ', postgrasp_size
@@ -650,13 +618,13 @@ def merge_files(directory):
     """
 
     data = []
-    for o in os.listdir(directory):
+    for object_file in os.listdir(directory):
 
-        if not '.txt' in o or o == 'commands':
+        if not '.txt' in object_file or object_file == 'commands':
             continue
 
         # Open the datafile, and find the number of fields
-        object_path = os.path.join(directory, o)
+        object_path = os.path.join(directory, object_file)
         content_file = open(object_path, 'r')
         reader = csv.reader(content_file, delimiter=',')
         for line in reader:
@@ -694,10 +662,9 @@ def main():
     if len(sys.argv) == 1:
         object_directory = os.listdir(config_collected_data_dir)
     else:
-        object_directory = sys.argv[1]
-        object_directory = [object_directory.split('/')[-1]]
-
+        object_directory = [sys.argv[1].split('/')[-1]]
     num_objects = len(object_directory)
+
 
     for i, object_name in enumerate(object_directory):
 
@@ -713,7 +680,7 @@ def main():
             # Open up all individual files, merge them into a single file
             merged_data = merge_files(direct)
 
-            decoded = decode(merged_data)
+            decoded = decode_raw_data(merged_data)
 
             # Check if the decoding returned successfully
             if isinstance(decoded, dict):
