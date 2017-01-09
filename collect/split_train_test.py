@@ -30,8 +30,8 @@ def plot_stats(dataset_path):
     # Combine the class and index so Seaborn doesn't try to replace one another
     stats['Class'] = stats["idx"].map(str) +'_'+ stats["Class"]
 
-    stats_sorted = stats.sort_values(['Train Grasps'], ascending=False,
-                                     inplace=False)
+    stats_sorted = stats.sort_values(['Train Grasps'], 
+        ascending=False, inplace=False)
 
     # Initialize the matplotlib figure
     _, axis = plt.subplots(figsize=(15, 20))
@@ -67,7 +67,7 @@ def count_num_grasps(list_of_objects_in_class):
         try:
             fpath = os.path.join(config_processed_data_dir, object_file)
             datafile = h5py.File(fpath, 'r')
-            successful_grasps = datafile['GRIPPER_IMAGE'].shape[0]
+            successful_grasps = datafile['image_depth_otm'].shape[0]
             num_grasps[i] = successful_grasps
             datafile.close()
         except Exception as e:

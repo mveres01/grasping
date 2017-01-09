@@ -32,15 +32,44 @@ def split_dataset(n_samples, train_size=0.8, use_valid=False):
     return train_indices, test_indices
 
 
+def load_grasp_data(fname=None):
+    """Loads a specific hdf5 file."""
+
+    datafile = h5py.File(fname, 'r')
+
+    image_depth_oto = float32(datafile['image_depth_oto'][:])
+    image_colour_oto = float32(datafile['image_colour_oto'][:])
+    images_oto = np.concatenate([image_depth_oto, image_colour_oto], axis=1)
+
+    image_depth_otm = float32(datafile['image_depth_otm'][:])
+    image_colour_otm = float32(datafile['image_colour_otm'][:])
+    images_otm = np.concatenate([image_depth_otm, image_colour_otm], axis=1)
+
+    # For convenience, access all of the information we'll need
+    pregrasp = datafile['pregrasp']
+    
+    work2grasp = pregrasp['work2grasp'][:]
+    cam2grasp_oto = pregrasp['cam2grasp_oto'][:]
+    cam2grasp_otm = pregrasp['cam2grasp_otm'][:]
+
+    keys = [k for k in pregrasp.keys() if 'grasp' not in k]
+    misc_dict = {k:pregrasp[k] for k in keys}
+
+    return (cam2grasp_oto, cam2grasp_otm, images_oto, images_otm, misc_dict)
+
+
 def load_object_datasets(data_dir, data_list):
     """Given a directory, load a set of hdf5 files given as a list."""
 
     if not isinstance(data_list, list):
         data_list = [data_list]
 
-    grasps, images, labels, object_props = [], [], [], []
+    grasps_oto = []
+    grasps_otm = []
+    images_oto = []
+    images_otm = []
+    misc_props = {}
 
-    
     for fname in data_list:
 
         data_path = os.path.join(data_dir, fname)
@@ -50,63 +79,26 @@ def load_object_datasets(data_dir, data_list):
             print '%s no data returned!'%fname
             continue
 
-        grasps.append(data[0])
-        images.append(data[1])
-        labels.append(data[2])
-        object_props.append(data[3])
-    grasps = np.vstack(grasps)
-    images = np.vstack(images)
-    labels = np.vstack(labels)
-    object_props = np.vstack(object_props)
-    return grasps, images, labels, object_props
+        grasps_oto.append(data[0])
+        grasps_otm.append(data[1])
+        images_oto.append(data[2])
+        images_otm.append(data[3])
+       
+        if not misc_props:
+            for key in data[4]:
+                misc_props[key] = []
+        for key in data[4]: 
+            misc_props[key].append(data[4][key])
 
+    grasps_oto = np.vstack(grasps_oto)
+    grasps_otm = np.vstack(grasps_otm)
+    images_oto = np.vstack(images_oto)
+    images_otm = np.vstack(images_otm)
 
-def load_grasp_data(fname=None):
-    """Loads a specific hdf5 file."""
+    for key in misc_props.keys():
+        misc_props[key] = np.vstack(misc_props[key])
 
-    datafile = h5py.File(fname, 'r')
-
-    object_name = datafile['OBJECT_NAME'][:]
-    object_name = np.atleast_2d(object_name).T
-    depth_images = float32(datafile['GRIPPER_IMAGE'][:])
-    colour_images = float32(datafile['GRIPPER_IMAGE_COLOUR'][:])
-    images = np.concatenate((depth_images, colour_images), axis=1)
-
-    # For convenience, access all of the information we'll need
-    pregrasp = datafile['GRIPPER_PREGRASP']
-    grasp_wrt_cam = pregrasp['grasp_wrt_cam_variant'][:]
-    frame_cam_wrt_obj = pregrasp['frame_cam_wrt_obj'][:]
-    frame_img_wrt_cam = pregrasp['frame_img_wrt_cam_variant'][:]
-    frame_obj_wrt_world = pregrasp['frame_obj_wrt_world'][:]
-    frame_workspace_wrt_world = pregrasp['frame_workspace_wrt_world'][:]
-
-    # NOTE: Check if we still need this?
-    if 'frame_cam_wrt_world' not in pregrasp:
-        frame_cam_wrt_world = np.empty(frame_obj_wrt_world.shape)
-
-        for i in xrange(frame_obj_wrt_world.shape[0]):
-            w2o = format_htmatrix(frame_obj_wrt_world[i].reshape(3, 4))
-            o2c = format_htmatrix(frame_cam_wrt_obj[i].reshape(3, 4))
-            frame_cam_wrt_world[i] = np.dot(w2o, o2c)[:3].flatten()
-    else:
-        frame_cam_wrt_world = pregrasp['frame_cam_wrt_world'][:]
-
-    # Labels are composed of the object name, as well as additional reference
-    # frames
-    labels = np.hstack([object_name, frame_obj_wrt_world, frame_cam_wrt_obj,
-                        frame_cam_wrt_world, frame_workspace_wrt_world,
-                        frame_img_wrt_cam])
-
-    # Object specific properties, so we can set these in simulation when testing
-    com_wrt_obj = pregrasp['com_wrt_cam'][:]
-    mass_wrt_obj = pregrasp['mass_wrt_cam'][:]
-    inertia_wrt_obj = pregrasp['inertia_wrt_cam'][:]
-
-    assert all(grasp_wrt_cam.shape[0] == data.shape[0] for data in [images, labels])
-
-    obj_props = np.hstack([mass_wrt_obj, inertia_wrt_obj, com_wrt_obj])
-
-    return (grasp_wrt_cam, images, labels, obj_props)
+    return grasps_oto, grasps_otm, images_oto, images_otm, misc_props
 
 
 def split_and_save_dataset():
@@ -122,75 +114,102 @@ def split_and_save_dataset():
     # the provided 'train_list' file.
     train_objects = []
     for c_idx in train_list:
-        object_list = [o for o in os.listdir(config_train_dir) if c_idx in o]
-        train_objects += object_list
+        train_objects += [o for o in os.listdir(config_train_dir) if c_idx in o]
         
     # For the test set, we will eventually segment into similar/different
     # classes
     test_objects = [o for o in os.listdir(config_test_dir) if '.hdf5' in o]
 
-
     print '  Loading Train data ... '
     train_data = load_object_datasets(config_train_dir, train_objects)
-    tr_grasps, tr_images, tr_labels, tr_props = train_data
-
-    print '  Loading Test Data ... '
-    test_data = load_object_datasets(config_test_dir, test_objects)
-    test_grasps, test_images, test_labels, test_props = test_data
-
-    # Randomly shuffle the test set
-    indices = np.arange(test_grasps.shape[0])
-    np.random.seed(12345)
-    np.random.shuffle(indices)
-    test_grasps = test_grasps[indices]
-    test_images = test_images[indices]
-    test_labels = test_labels[indices]
-    test_props = test_props[indices]
-
-    assert all(x.shape[0] == tr_grasps.shape[0] for x in \
-        [tr_grasps, tr_images, tr_labels, tr_props])
-
-    assert all(x.shape[0] == test_grasps.shape[0] for x in \
-        [test_grasps, test_images, test_labels, test_props])
-
+    grasps_oto = train_data[0]
+    grasps_otm = train_data[1]
+    images_oto = train_data[2]
+    images_otm = train_data[3]
+    misc_props = train_data[4]
 
     # Split the training dataset into train/valid splits
-    train_indices, val_indices = split_dataset(tr_grasps.shape[0], 0.9)
+    # -------- Train dataset
+    train_indices, valid_indices = split_dataset(grasps_oto.shape[0], 0.9)
+    tr_grasps_oto = grasps_oto[train_indices]
+    tr_grasps_otm = grasps_otm[train_indices]
+    tr_images_oto = images_oto[train_indices]
+    tr_images_otm = images_otm[train_indices]
+    tr_misc_props = {}
+    for key in misc_props.keys():
+        tr_misc_props[key] = misc_props[key][train_indices]
 
-    valid_grasps = tr_grasps[val_indices]
-    valid_images = tr_images[val_indices]
-    valid_labels = tr_labels[val_indices]
-    valid_props = tr_props[val_indices]
 
-    train_grasps = tr_grasps[train_indices]
-    train_images = tr_images[train_indices]
-    train_labels = tr_labels[train_indices]
-    train_props = tr_props[train_indices]
+    # -------- Valid dataset
+    va_grasps_oto = grasps_oto[valid_indices]
+    va_grasps_otm = grasps_otm[valid_indices]
+    va_images_oto = images_oto[valid_indices]
+    va_images_otm = images_otm[valid_indices]
+    va_misc_props = {}
+    for key in misc_props.keys():
+        va_misc_props[key] = misc_props[key][valid_indices]
+
+
+    # -------- Test dataset
+    test_data = load_object_datasets(config_test_dir, test_objects)
+
+    test_indices = np.arange(test_data[0].shape[0])
+    np.random.shuffle(test_indices)
+
+    te_grasps_oto = test_data[0][test_indices]
+    te_grasps_otm = test_data[1][test_indices]
+    te_images_oto = test_data[2][test_indices]
+    te_images_otm = test_data[3][test_indices]
+    te_misc_props = {}
+    for key in test_data[4].keys():
+        te_misc_props[key] = test_data[4][key][test_indices]
+
+
+    assert all(x.shape[0] == tr_grasps_oto.shape[0] for x in \
+        [tr_grasps_oto, tr_grasps_otm, tr_images_oto, tr_grasps_otm])
+
+    assert all(x.shape[0] == va_grasps_oto.shape[0] for x in \
+        [va_grasps_oto, va_grasps_otm, va_images_oto, va_grasps_otm])
+
+    assert all(x.shape[0] == te_grasps_oto.shape[0] for x in \
+        [te_grasps_oto, te_grasps_otm, te_images_oto, te_grasps_otm])
 
 
     # Write each of the train/test/valid splits to file
-    savefile = h5py.File(config_dataset_path, 'a')
+    savefile = h5py.File(config_dataset_path, 'w')
     group = savefile.create_group('train')
-    group.create_dataset('images', data=train_images)
-    group.create_dataset('grasps', data=train_grasps)
-    group.create_dataset('labels', data=train_labels)
-    group.create_dataset('object_props', data=train_props)
+    group.create_dataset('images_oto', data=tr_images_oto)
+    group.create_dataset('images_otm', data=tr_images_otm)
+    group.create_dataset('grasps_oto', data=tr_grasps_oto)
+    group.create_dataset('grasps_otm', data=tr_grasps_otm)
+
+    props = group.create_group('object_props')
+    for key in tr_misc_props.keys():
+        props.create_dataset(key, data=tr_misc_props[key])
     savefile.close()
 
     savefile = h5py.File(config_dataset_path, 'a')
     group = savefile.create_group('test')
-    group.create_dataset('images', data=test_images)
-    group.create_dataset('grasps', data=test_grasps)
-    group.create_dataset('labels', data=test_labels)
-    group.create_dataset('object_props', data=test_props)
+    group.create_dataset('images_oto', data=te_images_oto)
+    group.create_dataset('images_otm', data=te_images_otm)
+    group.create_dataset('grasps_oto', data=te_grasps_oto)
+    group.create_dataset('grasps_otm', data=te_grasps_otm)
+
+    props = group.create_group('object_props')
+    for key in te_misc_props.keys():
+        props.create_dataset(key, data=te_misc_props[key])
     savefile.close()
 
     savefile = h5py.File(config_dataset_path, 'a')
     group = savefile.create_group('valid')
-    group.create_dataset('images', data=valid_images)
-    group.create_dataset('grasps', data=valid_grasps)
-    group.create_dataset('labels', data=valid_labels)
-    group.create_dataset('object_props', data=valid_props)
+    group.create_dataset('images_oto', data=va_images_oto)
+    group.create_dataset('images_otm', data=va_images_otm)
+    group.create_dataset('grasps_oto', data=va_grasps_oto)
+    group.create_dataset('grasps_otm', data=va_grasps_otm)
+
+    props = group.create_group('object_props')
+    for key in va_misc_props.keys():
+        props.create_dataset(key, data=va_misc_props[key])
     savefile.close()
 
 
