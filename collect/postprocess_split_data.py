@@ -85,10 +85,10 @@ def load_object_datasets(data_dir, data_list):
         images_otm.append(data[3])
        
         if not misc_props:
-            for key in data[4]:
+            for key in data[4].keys():
                 misc_props[key] = []
-        for key in data[4]: 
-            misc_props[key].append(data[4][key])
+        for key in misc_props.keys(): 
+            misc_props[key].append(np.atleast_2d(data[4][key]))
 
     grasps_oto = np.vstack(grasps_oto)
     grasps_otm = np.vstack(grasps_otm)
@@ -96,7 +96,10 @@ def load_object_datasets(data_dir, data_list):
     images_otm = np.vstack(images_otm)
 
     for key in misc_props.keys():
-        misc_props[key] = np.vstack(misc_props[key])
+        if key == 'object_name':
+            misc_props[key] = np.hstack(misc_props[key]).T
+        else:
+            misc_props[key] = np.vstack(misc_props[key])
 
     return grasps_oto, grasps_otm, images_oto, images_otm, misc_props
 
@@ -136,9 +139,12 @@ def split_and_save_dataset():
     tr_images_oto = images_oto[train_indices]
     tr_images_otm = images_otm[train_indices]
     tr_misc_props = {}
-    for key in misc_props.keys():
-        tr_misc_props[key] = misc_props[key][train_indices]
-
+    for key in misc_props.keys():  
+        if key == 'object_name': 
+            data = list(misc_props[key][train_indices])
+        else:
+            data = misc_props[key][train_indices]
+        tr_misc_props[key] = data
 
     # -------- Valid dataset
     va_grasps_oto = grasps_oto[valid_indices]
@@ -147,7 +153,11 @@ def split_and_save_dataset():
     va_images_otm = images_otm[valid_indices]
     va_misc_props = {}
     for key in misc_props.keys():
-        va_misc_props[key] = misc_props[key][valid_indices]
+        if key == 'object_name': 
+            data = list(misc_props[key][valid_indices])
+        else:
+            data = misc_props[key][valid_indices]
+        va_misc_props[key] = data 
 
 
     # -------- Test dataset
@@ -162,7 +172,11 @@ def split_and_save_dataset():
     te_images_otm = test_data[3][test_indices]
     te_misc_props = {}
     for key in test_data[4].keys():
-        te_misc_props[key] = test_data[4][key][test_indices]
+        if key == 'object_name': 
+            data = list(test_data[4][key][test_indices])
+        else:
+            data = test_data[4][key][test_indices]
+        te_misc_props[key] = data 
 
 
     assert all(x.shape[0] == tr_grasps_oto.shape[0] for x in \
