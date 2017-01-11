@@ -282,12 +282,12 @@ def decode_grasp(grasp_line, object_mask, object_depth_image):
     work2world = invert_htmatrix(world2work)
 
     # Camera frame that doesn't change rotation (one image many grasps)
-    work2cam_otm = grasp_line['rot_variant_matrix'].reshape(3, 4)
+    work2cam_otm = grasp_line['rot_invariant_matrix'].reshape(3, 4)
     work2cam_otm = format_htmatrix(work2cam_otm)
     cam2work_otm = invert_htmatrix(work2cam_otm)
 
     # Camera frame that changes rotation (one image to one grasp)
-    work2cam_oto = grasp_line['rot_invariant_matrix'].reshape(3, 4)
+    work2cam_oto = grasp_line['rot_variant_matrix'].reshape(3, 4)
     work2cam_oto = format_htmatrix(work2cam_oto)
     cam2work_oto = invert_htmatrix(work2cam_oto)
 
@@ -599,11 +599,12 @@ def postprocess(data, object_name):
     grasp_group = datafile.create_group('pregrasp')
     for key in data['pregrasp'].keys():
         grasp_group.create_dataset(key, data=data['pregrasp'][key])
+    grasp_group.create_dataset('object_name', data=[object_name]*postgrasp_size)
 
     grasp_group = datafile.create_group('postgrasp')
     for key in data['postgrasp'].keys():
         grasp_group.create_dataset(key, data=data['postgrasp'][key])
-
+    grasp_group.create_dataset('object_name', data=[object_name]*postgrasp_size)
     sample_images(datafile, config_sample_image_dir)
     datafile.close()
 

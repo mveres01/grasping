@@ -11,7 +11,7 @@ from lib.python_config import (config_dataset_path, config_train_dir,
                                config_test_dir, config_train_item_list)
 
 
-def split_dataset(n_samples, train_size=0.8, use_valid=False):
+def split_dataset(n_samples, train_size=0.8):
     """Generate train and test indices to split a dataset."""
 
     # Split data into train/test/valid
@@ -21,13 +21,6 @@ def split_dataset(n_samples, train_size=0.8, use_valid=False):
     n_samples_train = int(train_size*n_samples)
     train_indices = indices[:n_samples_train]
     test_indices = indices[n_samples_train:]
-
-    # Make valid and test set be equally-sized
-    if use_valid is True:
-        valid_indices = test_indices[:int(0.5*len(test_indices))]
-        test_indices = test_indices[int(0.5*len(test_indices)):]
-
-        return train_indices, test_indices, valid_indices
 
     return train_indices, test_indices
 
@@ -47,11 +40,10 @@ def load_grasp_data(fname=None):
 
     # For convenience, access all of the information we'll need
     pregrasp = datafile['pregrasp']
-    
-    work2grasp = pregrasp['work2grasp'][:]
     cam2grasp_oto = pregrasp['cam2grasp_oto'][:]
     cam2grasp_otm = pregrasp['cam2grasp_otm'][:]
 
+    # Collect everything else but the grasp
     keys = [k for k in pregrasp.keys() if 'grasp' not in k]
     misc_dict = {k:pregrasp[k] for k in keys}
 
@@ -64,12 +56,14 @@ def load_object_datasets(data_dir, data_list):
     if not isinstance(data_list, list):
         data_list = [data_list]
 
+    # We'll append all data into a list before shuffle train/test/valid
     grasps_oto = []
     grasps_otm = []
     images_oto = []
     images_otm = []
     misc_props = {}
 
+    # For each of the decoded objects in the data_dir
     for fname in data_list:
 
         data_path = os.path.join(data_dir, fname)
@@ -83,13 +77,16 @@ def load_object_datasets(data_dir, data_list):
         grasps_otm.append(data[1])
         images_oto.append(data[2])
         images_otm.append(data[3])
-       
+      
+        # Misc props is stored as a dictionary, so we'll make a list out of
+        # each of the keys and append to that
         if not misc_props:
             for key in data[4].keys():
                 misc_props[key] = []
         for key in misc_props.keys(): 
             misc_props[key].append(np.atleast_2d(data[4][key]))
 
+    # Merge a list of lists into a single list/numpy array
     grasps_oto = np.vstack(grasps_oto)
     grasps_otm = np.vstack(grasps_otm)
     images_oto = np.vstack(images_oto)
@@ -132,6 +129,7 @@ def split_and_save_dataset():
     misc_props = train_data[4]
 
     # Split the training dataset into train/valid splits
+    
     # -------- Train dataset
     train_indices, valid_indices = split_dataset(grasps_oto.shape[0], 0.9)
     tr_grasps_oto = grasps_oto[train_indices]
@@ -192,38 +190,38 @@ def split_and_save_dataset():
     # Write each of the train/test/valid splits to file
     savefile = h5py.File(config_dataset_path, 'w')
     group = savefile.create_group('train')
-    group.create_dataset('images_oto', data=tr_images_oto)
-    group.create_dataset('images_otm', data=tr_images_otm)
-    group.create_dataset('grasps_oto', data=tr_grasps_oto)
-    group.create_dataset('grasps_otm', data=tr_grasps_otm)
+    group.create_dataset('images_oto', data=tr_images_oto, compression='gzip')
+    group.create_dataset('images_otm', data=tr_images_otm, compression='gzip')
+    group.create_dataset('grasps_oto', data=tr_grasps_oto, compression='gzip')
+    group.create_dataset('grasps_otm', data=tr_grasps_otm, compression='gzip')
 
     props = group.create_group('object_props')
     for key in tr_misc_props.keys():
-        props.create_dataset(key, data=tr_misc_props[key])
+        props.create_dataset(key, data=tr_misc_props[key], compression='gzip')
     savefile.close()
 
     savefile = h5py.File(config_dataset_path, 'a')
     group = savefile.create_group('test')
-    group.create_dataset('images_oto', data=te_images_oto)
-    group.create_dataset('images_otm', data=te_images_otm)
-    group.create_dataset('grasps_oto', data=te_grasps_oto)
-    group.create_dataset('grasps_otm', data=te_grasps_otm)
+    group.create_dataset('images_oto', data=te_images_oto, compression='gzip')
+    group.create_dataset('images_otm', data=te_images_otm, compression='gzip')
+    group.create_dataset('grasps_oto', data=te_grasps_oto, compression='gzip')
+    group.create_dataset('grasps_otm', data=te_grasps_otm, compression='gzip')
 
     props = group.create_group('object_props')
     for key in te_misc_props.keys():
-        props.create_dataset(key, data=te_misc_props[key])
+        props.create_dataset(key, data=te_misc_props[key], compression='gzip')
     savefile.close()
 
     savefile = h5py.File(config_dataset_path, 'a')
     group = savefile.create_group('valid')
-    group.create_dataset('images_oto', data=va_images_oto)
-    group.create_dataset('images_otm', data=va_images_otm)
-    group.create_dataset('grasps_oto', data=va_grasps_oto)
-    group.create_dataset('grasps_otm', data=va_grasps_otm)
+    group.create_dataset('images_oto', data=va_images_oto, compression='gzip')
+    group.create_dataset('images_otm', data=va_images_otm, compression='gzip')
+    group.create_dataset('grasps_oto', data=va_grasps_oto, compression='gzip')
+    group.create_dataset('grasps_otm', data=va_grasps_otm, compression='gzip')
 
     props = group.create_group('object_props')
     for key in va_misc_props.keys():
-        props.create_dataset(key, data=va_misc_props[key])
+        props.create_dataset(key, data=va_misc_props[key], compression='gzip')
     savefile.close()
 
 
