@@ -619,7 +619,7 @@ def postprocess(data, object_name):
     grasp_group = datafile.create_group('postgrasp')
     for key in data['postgrasp'].keys():
         grasp_group.create_dataset(key, data=data['postgrasp'][key],
-                                   coompression='gzip')
+                                   compression='gzip')
     grasp_group.create_dataset('object_name', data=[object_name]*postgrasp_size)
 
     # We'll save some images to visualize what we've collected/decoded
