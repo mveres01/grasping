@@ -589,22 +589,40 @@ def postprocess(data, object_name):
     save_path = os.path.join(config_processed_data_dir, object_name+'.hdf5')
 
     datafile = h5py.File(save_path, 'w')
-    datafile.create_dataset('image_depth_otm', data=data['image_depth_otm'])
-    datafile.create_dataset('image_depth_oto', data=data['image_depth_oto'])
-    datafile.create_dataset('image_colour_otm', data=data['image_colour_otm'])
-    datafile.create_dataset('image_colour_oto', data=data['image_colour_oto'])
-    datafile.create_dataset('image_mask_otm', data=data['image_mask_otm'])
-    datafile.create_dataset('object_name', data=[object_name]*postgrasp_size)
+    datafile.create_dataset('image_depth_otm', data=data['image_depth_otm'], 
+                            compression='gzip')
 
+    datafile.create_dataset('image_depth_oto', data=data['image_depth_oto'], 
+                            compression='gzip')
+
+    datafile.create_dataset('image_colour_otm', data=data['image_colour_otm'], 
+                            compression='gzip')
+
+    datafile.create_dataset('image_colour_oto', data=data['image_colour_oto'], 
+                            compression='gzip')
+
+    datafile.create_dataset('image_mask_otm', data=data['image_mask_otm'], 
+                            compression='gzip')
+
+    datafile.create_dataset('object_name', data=[object_name]*postgrasp_size,
+                            compression='gzip')
+
+    # Add the pregrasp to the dataset
     grasp_group = datafile.create_group('pregrasp')
     for key in data['pregrasp'].keys():
-        grasp_group.create_dataset(key, data=data['pregrasp'][key])
-    grasp_group.create_dataset('object_name', data=[object_name]*postgrasp_size)
+        grasp_group.create_dataset(key, data=data['pregrasp'][key],
+                                   compression='gzip')
+    grasp_group.create_dataset('object_name', data=[object_name]*postgrasp_size,
+                               compression='gzip')
 
+    # Add the postgrasp to the dataset
     grasp_group = datafile.create_group('postgrasp')
     for key in data['postgrasp'].keys():
-        grasp_group.create_dataset(key, data=data['postgrasp'][key])
+        grasp_group.create_dataset(key, data=data['postgrasp'][key],
+                                   coompression='gzip')
     grasp_group.create_dataset('object_name', data=[object_name]*postgrasp_size)
+
+    # We'll save some images to visualize what we've collected/decoded
     sample_images(datafile, config_sample_image_dir)
     datafile.close()
 
