@@ -6,9 +6,11 @@ sys.path.append('..')
 import h5py
 import numpy as np
 
-from lib.utils import float32, format_htmatrix
-from lib.python_config import (config_dataset_path, config_train_dir,
-                               config_test_dir, config_train_item_list)
+from lib.utils import float32
+from lib.python_config import (config_dataset_path_oto, 
+                               config_dataset_path_otm,
+                               config_train_dir, config_test_dir,
+                               config_train_item_list)
 
 
 def split_dataset(n_samples, train_size=0.8):
@@ -77,13 +79,13 @@ def load_object_datasets(data_dir, data_list):
         grasps_otm.append(data[1])
         images_oto.append(data[2])
         images_otm.append(data[3])
-      
+
         # Misc props is stored as a dictionary, so we'll make a list out of
         # each of the keys and append to that
         if not misc_props:
             for key in data[4].keys():
                 misc_props[key] = []
-        for key in misc_props.keys(): 
+        for key in misc_props.keys():
             misc_props[key].append(np.atleast_2d(data[4][key]))
 
     # Merge a list of lists into a single list/numpy array
@@ -101,6 +103,21 @@ def load_object_datasets(data_dir, data_list):
     return grasps_oto, grasps_otm, images_oto, images_otm, misc_props
 
 
+def write_dataset(images, grasps, props, dataset_path, subset, mode='a'):
+    """Writes information to an hdf5 file."""
+
+    # Write each of the train/test/valid splits to file
+    savefile = h5py.File(dataset_path, mode)
+    group = savefile.create_group(subset)
+    group.create_dataset('images', data=images, compression='gzip')
+    group.create_dataset('grasps', data=grasps, compression='gzip')
+
+    group_props = group.create_group('object_props')
+    for key in props.keys():
+        group_props.create_dataset(key, data=props[key], compression='gzip')
+    savefile.close()
+
+
 def split_and_save_dataset():
     """Given a list of train items, splits a dataset into train/test split."""
 
@@ -115,10 +132,12 @@ def split_and_save_dataset():
     train_objects = []
     for c_idx in train_list:
         train_objects += [o for o in os.listdir(config_train_dir) if c_idx in o]
-        
+
     # For the test set, we will eventually segment into similar/different
     # classes
     test_objects = [o for o in os.listdir(config_test_dir) if '.hdf5' in o]
+
+
 
     print '  Loading Train data ... '
     train_data = load_object_datasets(config_train_dir, train_objects)
@@ -128,8 +147,10 @@ def split_and_save_dataset():
     images_otm = train_data[3]
     misc_props = train_data[4]
 
-    # Split the training dataset into train/valid splits
-    
+    print '  Loading Test data ... '
+    test_data = load_object_datasets(config_test_dir, test_objects)
+
+
     # -------- Train dataset
     train_indices, valid_indices = split_dataset(grasps_oto.shape[0], 0.9)
     tr_grasps_oto = grasps_oto[train_indices]
@@ -137,8 +158,8 @@ def split_and_save_dataset():
     tr_images_oto = images_oto[train_indices]
     tr_images_otm = images_otm[train_indices]
     tr_misc_props = {}
-    for key in misc_props.keys():  
-        if key == 'object_name': 
+    for key in misc_props.keys():
+        if key == 'object_name':
             data = list(misc_props[key][train_indices])
         else:
             data = misc_props[key][train_indices]
@@ -151,16 +172,14 @@ def split_and_save_dataset():
     va_images_otm = images_otm[valid_indices]
     va_misc_props = {}
     for key in misc_props.keys():
-        if key == 'object_name': 
+        if key == 'object_name':
             data = list(misc_props[key][valid_indices])
         else:
             data = misc_props[key][valid_indices]
-        va_misc_props[key] = data 
+        va_misc_props[key] = data
 
 
     # -------- Test dataset
-    test_data = load_object_datasets(config_test_dir, test_objects)
-
     test_indices = np.arange(test_data[0].shape[0])
     np.random.shuffle(test_indices)
 
@@ -170,13 +189,14 @@ def split_and_save_dataset():
     te_images_otm = test_data[3][test_indices]
     te_misc_props = {}
     for key in test_data[4].keys():
-        if key == 'object_name': 
+        if key == 'object_name':
             data = list(test_data[4][key][test_indices])
         else:
             data = test_data[4][key][test_indices]
-        te_misc_props[key] = data 
+        te_misc_props[key] = data
 
 
+    # Quick sanity check to make sure everything is the same size
     assert all(x.shape[0] == tr_grasps_oto.shape[0] for x in \
         [tr_grasps_oto, tr_grasps_otm, tr_images_oto, tr_grasps_otm])
 
@@ -187,42 +207,27 @@ def split_and_save_dataset():
         [te_grasps_oto, te_grasps_otm, te_images_oto, te_grasps_otm])
 
 
-    # Write each of the train/test/valid splits to file
-    savefile = h5py.File(config_dataset_path, 'w')
-    group = savefile.create_group('train')
-    group.create_dataset('images_oto', data=tr_images_oto, compression='gzip')
-    group.create_dataset('images_otm', data=tr_images_otm, compression='gzip')
-    group.create_dataset('grasps_oto', data=tr_grasps_oto, compression='gzip')
-    group.create_dataset('grasps_otm', data=tr_grasps_otm, compression='gzip')
 
-    props = group.create_group('object_props')
-    for key in tr_misc_props.keys():
-        props.create_dataset(key, data=tr_misc_props[key], compression='gzip')
-    savefile.close()
+    # Write both types of image-grasp mappings to file
+    write_dataset(tr_images_oto, tr_grasps_oto, tr_misc_props,
+                  config_dataset_path_oto, 'train', mode='w')
 
-    savefile = h5py.File(config_dataset_path, 'a')
-    group = savefile.create_group('test')
-    group.create_dataset('images_oto', data=te_images_oto, compression='gzip')
-    group.create_dataset('images_otm', data=te_images_otm, compression='gzip')
-    group.create_dataset('grasps_oto', data=te_grasps_oto, compression='gzip')
-    group.create_dataset('grasps_otm', data=te_grasps_otm, compression='gzip')
+    write_dataset(va_images_oto, va_grasps_oto, va_misc_props,
+                  config_dataset_path_oto, 'valid', mode='a')
 
-    props = group.create_group('object_props')
-    for key in te_misc_props.keys():
-        props.create_dataset(key, data=te_misc_props[key], compression='gzip')
-    savefile.close()
+    write_dataset(te_images_oto, te_grasps_oto, te_misc_props,
+                  config_dataset_path_oto, 'test', mode='a')
 
-    savefile = h5py.File(config_dataset_path, 'a')
-    group = savefile.create_group('valid')
-    group.create_dataset('images_oto', data=va_images_oto, compression='gzip')
-    group.create_dataset('images_otm', data=va_images_otm, compression='gzip')
-    group.create_dataset('grasps_oto', data=va_grasps_oto, compression='gzip')
-    group.create_dataset('grasps_otm', data=va_grasps_otm, compression='gzip')
 
-    props = group.create_group('object_props')
-    for key in va_misc_props.keys():
-        props.create_dataset(key, data=va_misc_props[key], compression='gzip')
-    savefile.close()
+    write_dataset(tr_images_otm, tr_grasps_otm, tr_misc_props,
+                  config_dataset_path_otm, 'train', mode='w')
+
+    write_dataset(va_images_otm, va_grasps_otm, va_misc_props,
+                  config_dataset_path_otm, 'valid', mode='a')
+
+    write_dataset(te_images_otm, te_grasps_otm, te_misc_props,
+                  config_dataset_path_otm, 'test', mode='a')
+
 
 
 if __name__ == '__main__':
