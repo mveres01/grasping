@@ -7,6 +7,7 @@
 * Python trimesh library from https://pypi.python.org/pypi/trimesh
 * Mesh files (tested with .stl and .obj)
 * GNU Parallel
+* **NOTE 2017-01-12: We are in the process of providing sample meshes**.
 
 ## Initialize paths
 * In lib/python_config.py change the project dir to point to where this project was downloaded to. This file is used for controlling basic parameters within all python files
@@ -15,7 +16,7 @@
 * Open scenes/scene_collect_grasps.ttt in V-REP. Modify the threaded script by double-clicking the blue page icon beside 'GraspCollection', and change the variable to "local file_dir" to point to where the lua_config.lua file is found
 
 ## Download meshes
-* Download meshes as either the Wavefront .obj file format, or .stl file format. Place them in data/meshes/object_files
+* Download meshes as either the Wavefront .obj file format, or .stl file format. Place them in data/meshes/object_files. In this work, the meshes were labeled according to the convention 'XXX_yyyyyyy', where 'XXX' is the object class (e.g. 42, 25), and 'yyyyyy' is the name of the object name (e.g. 'wineglass', 'mug'). Example: '42_wineglass'.
 * Note that the simulation works best with simple meshes; For complex meshes, you may need to manually process them to reduce the number of triangles or complexity before running in the simulation. The more complex the mesh is, the more unstable the simulations will be
 
 ## Step 1: Prepare all meshes / mesh properties for simulation
