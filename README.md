@@ -1,5 +1,7 @@
 # grasping
 
+This project contains the code used for generating multi-modal grasps in V-REP, and described in the paper "An Integrated Simulator and Data Set that Combines Grasping and Vision for Deep Learning" (TBA). 
+
 ## Requirements
 * Python 2.7
 * V-REP from http://www.coppeliarobotics.com/downloads.html
