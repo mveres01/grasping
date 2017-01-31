@@ -1,26 +1,28 @@
 # grasping
 
+This project contains the code used for generating multi-modal grasps in V-REP, and described in the paper "An Integrated Simulator and Data Set that Combines Grasping and Vision for Deep Learning" (TBA). 
+
 ## Requirements
 * Python 2.7
 * V-REP from http://www.coppeliarobotics.com/downloads.html
 * matrix.lua from https://github.com/davidm/lua-matrix/tree/master/lua
 * Python trimesh library from https://pypi.python.org/pypi/trimesh
-* Mesh files (tested with .stl and .obj)
-* GNU Parallel
-* **NOTE 2017-01-12: We are in the process of providing sample meshes**.
+* Mesh files from  https://uwaterloo.ca/neurorobotics-lab/g3db
+* (optional) GNU Parallel & linux for parallelization
 
 ## Initialize paths
-* In lib/python_config.py change the project dir to point to where this project was downloaded to. This file is used for controlling basic parameters within all python files
+* In lib/python_config.py change the variable *project_dir* to point to where this project was downloaded to. This file is used for controlling basic parameters within all python files
 * In lib/lua_config.py change the different directory lists to point to where the project was downloaded to. This file is used for controlling parameters within the different V-REP simulations
-* Open scenes/get_initial_poses.ttt in V-REP. Modify the threaded script by double-clicking the blue page icon beside 'GraspCollection', and change the variable to "local file_dir" to point to where the lua_config.lua file is found
-* Open scenes/scene_collect_grasps.ttt in V-REP. Modify the threaded script by double-clicking the blue page icon beside 'GraspCollection', and change the variable to "local file_dir" to point to where the lua_config.lua file is found
+* Open scenes/get_initial_poses.ttt in V-REP. Modify the threaded script by double-clicking the blue page icon beside 'GraspCollection', and change the variable *local file_dir* to point to where the lua_config.lua file is found
+* Open scenes/scene_collect_grasps.ttt in V-REP. Modify the threaded script by double-clicking the blue page icon beside 'GraspCollection', and change the variable *local file_dir* to point to where the lua_config.lua file is found
 
 ## Download meshes
-* Download meshes as either the Wavefront .obj file format, or .stl file format. Place them in data/meshes/object_files. In this work, the meshes were labeled according to the convention 'XXX_yyyyyyy', where 'XXX' is the object class (e.g. 42, 25), and 'yyyyyy' is the name of the object name (e.g. 'wineglass', 'mug'). Example: '42_wineglass'.
-* Note that the simulation works best with simple meshes; For complex meshes, you may need to manually process them to reduce the number of triangles or complexity before running in the simulation. The more complex the mesh is, the more unstable the simulations will be
+* Download object meshes as either the Wavefront .obj file format, or .stl file format, and place them in data/meshes/object_files. To obtain the mesh files used in the work, you can download them from the [Waterloo G3DB](https://uwaterloo.ca/neurorobotics-lab/g3db) project. In this work, we only used a subset of these meshes, and the list can be found within the  /lib folder.
+* Note 1: In this work, the meshes were labeled according to the convention 'XXX_yyyyyyy', where 'XXX' is the object class (e.g. 42, 25), and 'yyyyyy' is the name of the object name (e.g. 'wineglass', 'mug'). Example: '42_wineglass'.
+* Note 2: The simulation works best with simple meshes; For complex meshes, you may need to manually process them to reduce the number of triangles or complexity before running in the simulation. The more complex the mesh is, the more unstable the simulations will be
 
 ## Step 1: Prepare all meshes / mesh properties for simulation
-* First load all the meshes we'll use. This will create a file called 'mesh_object_properties.txt' in the data/ folder. This file contains information about each mesh, including mass, center of mass, and inertia.
+* First, we need to preprocess all the meshes we'll use to identify their relative properties, and fix any meshes that are not watertight. This process will create a file called 'mesh_object_properties.txt' in the data/ folder, containing information about each mesh, including mass, center of mass, and inertia.
 ```unix
 $: cd initialize
 $: python prepare_meshes.py
@@ -36,14 +38,16 @@ $: cat ../data/initial_poses.txt | parallel python prepare_meshes.py
 $: cd initialize
 $: python prepare_commands.py
 ```
-## Step 2: run the commands within the simulator
-* Launch the simulations using generated command files. Note that there may be some specific simulator variables you may be interested in changing (i.e. camera near/far clipping plances, which contacts are part of the gripper), which can be found inside the 'config.lua' file. The simulation will save successful grasps to the data/collected folder; launch the simulations with: 
+## Step 2: run the generated grasps through the simulator
+* Launch the simulations using generated command files. Note that there may be some specific simulator variables you may be interested in changing (i.e. camera near/far clipping plances, which contacts are part of the gripper), which can be found inside the 'config.lua' file. The simulation will save successful grasps to the data/collected folder.
+* Assuming you are running with linux and using GNU Parallel, you can launch the simulations with: 
 ```unix
 $: cd collect
 $: screen
 $: cat commands/mainXXX.txt | parallel -j N_JOBS 
 ```
-where XXX is a specific file to be run on a compute node, and N_JOBS is a number (i.e. 8), which specifies the number of jobs you want to run in parallel. If no number is specified, GNU parallel will use the maximum number of cores available
+where XXX is a specific file to be run on a compute node, and N_JOBS is a number (i.e. 8), which specifies the number of jobs you want to run in parallel. If no number is specified, GNU parallel will use the maximum number of cores available. If you are running on windows, you can sequentially collect grasps by manually launching the simulation, and changing which file is used within lib/lua_config.lua file
+
 * Once simulations are done, decode the collected data
 ```unix
 $: cd collect
