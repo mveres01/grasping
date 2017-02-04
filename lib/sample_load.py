@@ -1,6 +1,10 @@
 """
-This file acts as a stand-alone module for loading the dataset and visualizing 
+This file acts as a stand-alone module for loading the dataset and visualizing
 grasps/meshes.
+
+An optional choice is to view the grasps applied to the mesh, by downloading
+sample meshes from: https://uwaterloo.ca/neurorobotics-lab/g3db, and then
+setting the MESH_OBJECT_DIR variable below to point to the (unzipped) folder.
 """
 
 import os
@@ -8,11 +12,20 @@ import h5py
 import numpy as np
 import trimesh
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use('TkAgg')
 from matplotlib import pyplot as plt
 
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+
+# If you have object meshes, set this to point to the directory. Otherwise set None
+#MESH_OBJECT_DIR = '/scratch/mveres/grasping/data/meshes/object_files'
+MESH_OBJECT_DIR = None
+
+# Set this to point to where the dataset was saved to. By default this uses the
+# 'one-to-many' format. If you use the 'one-to-one' format, you will also need
+# to change the corresponding variable work2cam to use '_oto' instead of '_otm'.
+DATA_PATH = '/scratch/mveres/grasping/data/processed/grasping_otm.hdf5'
 
 
 def float32(x):
@@ -113,7 +126,7 @@ def plot_grasps(data, axis=None):
     else:
         ax = axis
 
-    # Gaussian KDE plots frequency of position using colour, but
+    # We'll plot the (x, y, z) position of each fingertip in red
     for sample in data:
         for i in range(0, 9, 3):
             ax.scatter(sample[i], sample[i+1], sample[i+2], marker='o', c='r')
@@ -122,12 +135,13 @@ def plot_grasps(data, axis=None):
 
 
 def plot_mesh(mesh_name, workspace2obj, mesh_dir, axis=None):
-    """Visualize where we will sample grasp candidates from
+    """Plots a mesh on a matplotlib axis, in the workspace frame.
 
     Parameters
     ----------
     mesh_name : name of the mesh (assuming it can be found in given path)
     workspace2obj : 4x4 transform matrix from the workspace to object
+    mesh_dir : absolute path to directory where meshes are stored
     axis : an (optional) matplotlib axis in which we can plot a mesh
     """
 
@@ -167,10 +181,17 @@ def plot_mesh(mesh_name, workspace2obj, mesh_dir, axis=None):
 
 
 def plot_grasps_and_mesh(grasps, props, mesh_dir=None):
-    """Takes the name of an object and plots associated grasps."""
+    """Plots both grasps + associated meshes on a single matplotlib axis.
 
+    Notes
+    -----
+    If mesh_dir is supplied, we plot the object. Else, only the grasps are
+    plotted.S
+    """
+
+    # Note this object exists in the train / validation set, but you will need
+    # to change this if visualizing the test set.
     object_name = '94_weight_final-19-Nov-2015-08-53-47'
-
     print 'Visualizing grasps for: %s'%object_name
 
     # Find the grasps for a specific object
@@ -211,6 +232,12 @@ def plot_grasps_and_mesh(grasps, props, mesh_dir=None):
 
 def load_dataset_hdf5(fname, subset='train', n_samples=-1):
     """Loads a dataset of images/grasps.
+
+    Parameters
+    ----------
+    fname : Absolute path to the .hdf5 file
+    subset : one of ('train', 'test', or 'valid')
+    n_samples : how many samples we'll read from the dataset
 
     Notes
     -----
@@ -257,7 +284,6 @@ def load_dataset_hdf5(fname, subset='train', n_samples=-1):
 
 if __name__ == '__main__':
 
-    DATA_PATH = '/scratch/mveres/grasping/data/processed/grasping_otm.hdf5'
     train = load_dataset_hdf5(DATA_PATH, subset='train', n_samples=-1)
     test = load_dataset_hdf5(DATA_PATH, subset='test', n_samples=-1)
     valid = load_dataset_hdf5(DATA_PATH, subset='valid', n_samples=-1)
@@ -266,10 +292,8 @@ if __name__ == '__main__':
     test_images, test_grasps, test_props = test
     valid_images, valid_grasps, valid_props = valid
 
-    print 'train_images.shape: ', train_images.shape
-    print 'test_images.shape: ', test_images.shape
-    print 'valid_images.shape: ',valid_images.shape
+    print '# Train instances: ', train_images.shape[0]
+    print '# Test instances:  ', test_images.shape[0]
+    print '# Valid instances: ',valid_images.shape[0]
 
-    #MESH_OBJECT_DIR = '/scratch/mveres/grasping/data/meshes/object_files'
-    MESH_OBJECT_DIR = None
     plot_grasps_and_mesh(train_grasps, train_props, mesh_dir=MESH_OBJECT_DIR)
