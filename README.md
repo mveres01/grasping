@@ -74,5 +74,5 @@ $: python postprocess_split_data.py
 
 # Miscellaneous resources
 * lib/sample_load.py is a standalone script that shows how data can be loaded and grasps can be plotted
-* lib/sample_clean_list.txt is a list of items in the train/test/validation set that have been checked over
+* lib/sample_clean_list.txt is a list of items in the train/test/validation set that have been checked over for correctness. This represents only a small sample of overall grasps in the dataset, and there may be other improper/incorrect grasps representing noise in the dataset.
 * lib/sample_mesh_list.txt is a list of meshes that were used in this project
