@@ -18,20 +18,20 @@ This project contains the code used for generating multi-modal grasps in V-REP, 
 
 ## Download meshes
 * Download object meshes as either the Wavefront .obj file format, or .stl file format, and place them in data/meshes/object_files. To obtain the mesh files used in the work, you can download them from the [Waterloo G3DB](https://uwaterloo.ca/neurorobotics-lab/g3db) project. In this work, we only used a subset of these meshes, and the list can be found within the  /lib folder.
-* Note 1: In this work, the meshes were labeled according to the convention 'XXX_yyyyyyy', where 'XXX' is the object class (e.g. 42, 25), and 'yyyyyy' is the name of the object name (e.g. 'wineglass', 'mug'). Example: '42_wineglass'.
-* Note 2: The simulation works best with simple meshes; For complex meshes, you may need to manually process them to reduce the number of triangles or complexity before running in the simulation. The more complex the mesh is, the more unstable the simulations will be
+* __Note 1__: In this work, the meshes were labeled according to the convention 'XXX_yyyyyyy', where 'XXX' is the object class (e.g. 42, 25), and 'yyyyyy' is the name of the object name (e.g. 'wineglass', 'mug'). Example: '42_wineglass'.
+* __Note 2__: The simulation works best with simple meshes; For complex meshes, you may need to manually process them to reduce the number of triangles or complexity before running in the simulation. Some meshes in the above file *are* complex, and note that the more complex the mesh is, the more unstable the simulations will be.
 
 ## Step 1: Prepare all meshes / mesh properties for simulation
 * First, we need to preprocess all the meshes we'll use to identify their relative properties, and fix any meshes that are not watertight. This process will create a file called 'mesh_object_properties.txt' in the data/ folder, containing information about each mesh, including mass, center of mass, and inertia.
 ```unix
 $: cd initialize
-$: python prepare_meshes.py
+$: python prepare_mesh.py
 ```
 * Open V-REP and run scenes/get_initial_poses.ttt. This will create a file data/initial_poses.txt that contains all information on the starting pose of the object and gripper, and will be used for generating potential grasp candidates.
 * Run initialize/prepare_candidates.py. This will read the pose information collected by V-REP, and generate a list of candidates for each object that will be tested in the simulator. Note that these candidates will be saved under collect/candidates
 ```unix
 $: cd initialize
-$: cat ../data/initial_poses.txt | parallel python prepare_meshes.py
+$: cat ../data/initial_poses.txt | parallel python prepare_candidates.py
 ```
 * Once the candidates have been generated, you can either run each of them manually through the simulation, or create a "commands" file that will continuously all of them through the simulator. These commands will be saved under collect/commands
 ```unix
