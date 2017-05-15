@@ -8,6 +8,7 @@ This project contains the code used for generating multi-modal grasps in V-REP, 
 * matrix.lua from https://github.com/davidm/lua-matrix/tree/master/lua
 * Python trimesh library from https://pypi.python.org/pypi/trimesh
 * Mesh files from  https://uwaterloo.ca/neurorobotics-lab/g3db
+* (optional) an Xserver (such as [Xorg](https://wiki.archlinux.org/index.php/xorg)) if running V-REP in headless mode. Note that default behaviour requires this, but can be changed if you wish to use the GUI (see Aside: Dissecting the commands, and running with / without headless mode)
 * (optional) GNU Parallel & linux for parallelization
 
 ## Initialize paths
@@ -33,11 +34,36 @@ $: python prepare_mesh.py
 $: cd initialize
 $: cat ../data/initial_poses.txt | parallel python prepare_candidates.py
 ```
-* Once the candidates have been generated, you can either run each of them manually through the simulation, or create a "commands" file that will continuously all of them through the simulator. These commands will be saved under collect/commands
+* Once the candidates have been generated, you can either run each of them manually through the simulation, or create a "commands" file that will aid in autonomously running them through the simulator. If you plan on running in headless mode (and the following line works for you), you can skip the subsequent aside.
+
 ```unix
 $: cd initialize
 $: python prepare_commands.py
 ```
+
+### Aside: Dissecting the commands, and running with / without headless mode
+On Line 72 of prepare_commands.py, we have the following code:
+
+```unix
+commands[i] = \
+            'ulimit -n 4096; export DISPLAY=:1; vrep.sh -h -q -s -g%s -g%s -g%s %s '\
+            %(sub_cmd[0], sub_cmd[1], sub_cmd[2], config_simulation_path)
+```
+
+Each element serves the following purpose:
+
+* __ulimit -n 4096__ : Setting the number of available processes a user can run. Note that you may not need this, but we found it useful.
+* __export DISPLAY=:1__ : For running these V-REP simulations in headless mode, an Xserver is needed for handling the vision information captured through the cameras. Here, we index a specific server attached to a display, but note that depending on how yours has been set up, you may need to change the index accordingly.
+* __vrep.sh -h -q -s -g%s -g%s -g%s %s__ : V-REP has a number of command-line options available (see [here](http://www.coppeliarobotics.com/helpFiles/en/commandLine.htm)). __-h__ specifies headless mode (i.e. without the GUI), __-q__ tells the program to quit after simulation has ended, __-s__ is to start the simulation, and __-g__ are arguments that get passed inside of the simulation script. The first -g specifies a specific set of grasps we've generated (e.g. 40_carafe_final-11-Mar-2016-17-09-17.txt), while the second and third -g's specify a range of grasps we wish to use (e.g. lines 1 --> 1500 of the specified file). The final element of the command specifies where the V-REP scene we wish to run can be found.
+
+Notice that the -h flag assumes you will be running the simulations in headless mode, which require an Xorg server for handling vision information. If you are not running in headless mode, you can replace the above line with the following:
+
+```unix
+commands[i] = \
+            'ulimit -n 4096; vrep.sh -q -s -g%s -g%s -g%s %s '\
+            %(sub_cmd[0], sub_cmd[1], sub_cmd[2], config_simulation_path)
+```
+
 ## Step 2: run the generated grasps through the simulator
 * Launch the simulations using generated command files. Note that there may be some specific simulator variables you may be interested in changing (i.e. camera near/far clipping plances, which contacts are part of the gripper), which can be found inside the 'config.lua' file. The simulation will save successful grasps to the data/collected folder.
 * Assuming you are running with linux and using GNU Parallel, you can launch the simulations with: 
@@ -47,6 +73,12 @@ $: screen
 $: cat commands/mainXXX.txt | parallel -j N_JOBS 
 ```
 where XXX is a specific file to be run on a compute node, and N_JOBS is a number (i.e. 8), which specifies the number of jobs you want to run in parallel. If no number is specified, GNU parallel will use the maximum number of cores available. If you are running on windows, you can sequentially collect grasps by manually launching the simulation, and changing which file is used within lib/lua_config.lua file
+
+* (optional) To get a sense of what the simulation is doing, you can also run commands *not* using headless mode. Adjust the following command accordingly, with the object and grasp range you wish to use:
+```
+$: vrep.sh -q -s -g40_carafe_final-11-Mar-2016-17-09-17.txt -g1 -g1501 /path/to/grasping/collect/scene_collect_grasps.ttt
+```
+where /path/to/grasping/collect/scene_collect_grasps.ttt represents the config_simulation_path variable in lib/python_config.py
 
 * Once simulations are done, decode the collected data
 ```unix
