@@ -3,7 +3,7 @@
 This project contains the code used for generating multi-modal grasps in V-REP, and described in the paper "An Integrated Simulator and Data Set that Combines Grasping and Vision for Deep Learning" (TBA). 
 
 ---------------------------
-__EDIT 2017/12/09__: This repository is being depracated in favour of a [newer version](https://github.com/mveres01/multi-contact-grasping), supporting the major following changes:
+__EDIT 2017/12/09__: This repository is being deprecated in favour of a [newer version](https://github.com/mveres01/multi-contact-grasping), supporting the major following changes:
 
 * __Simplified pipeline__: Put meshes in a directory and immediately begin grasp experiments. This replaces the previous strategy of repeatedly switching between python scripts and the simulator for different phases of collection
 * __Communication via Python Remote API__: The new repository supports communication through a python remote API. No more need to communicate through .csv files! Major processes ("dropping" an object, "grasping" an object, and "lifting" an object) are segmented into seperate threaded simulation scripts, and launched by setting a simulation flag from a python script. Additionally, custom functions can be implemented on the server side, and called through generic remote API functions with ease. Samples implemented are: set / get functions for specifying joint angles and object poses, loading objects, and collecting images.
