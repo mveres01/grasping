@@ -2,6 +2,18 @@
 
 This project contains the code used for generating multi-modal grasps in V-REP, and described in the paper "An Integrated Simulator and Data Set that Combines Grasping and Vision for Deep Learning" (TBA). 
 
+---------------------------
+__EDIT 2017/12/09__: This repository is being depracated in favour of a [newer version](https://github.com/mveres01/multi-contact-grasping), supporting the major following changes:
+
+* __Simplified pipeline__: Put meshes in a directory and immediately begin grasp experiments. This replaces the previous strategy of repeatedly switching between python scripts and the simulator for different phases of collection
+* __Communication via Python Remote API__: The new repository supports communication through a python remote API. No more need to communicate through .csv files! Major processes ("dropping" an object, "grasping" an object, and "lifting" an object) are segmented into seperate threaded simulation scripts, and launched by setting a simulation flag from a python script. Additionally, custom functions can be implemented on the server side, and called through generic remote API functions with ease. Samples implemented are: set / get functions for specifying joint angles and object poses, loading objects, and collecting images.
+* __Domain Randomization__: Visual scene properties (such as object colour / texture, table colour / texture, lighting, and camera pose) can be modified easily to collect a significant amount of sensory experience per grasp attempt. It can also be used to arbitrarily take images of the scene without any grasping experience, if someone is interested in e.g. segmentation algorithms. Domain randomization was introduced by [Tobin et. al.](https://arxiv.org/abs/1703.06907)
+* __View Images Immediately__: Images (RGB of object, RGB of object + gripper, object mask & depth) are saved in a dedicated folder whenever queried from the simulator. Visualize what images you're capturing right away!
+* __Definition of Grasp Success__: Previously, all fingers were required to be in contact with the object at the height of the object lift. In the new version, we use a proximity sensor attached to the robotic gripper to measure whether an object is present in the gripper or not.
+* __Grasp Candidate Generation__: Grasp candidates are now generated following the surface normals of a mesh object, with random orientations around the grippers local z-direction. Experimentally, this tends to give grasps with a higher probability of success then the pre- and post- multiplication method.
+
+-----------------------------
+
 ## Requirements
 * Python 2.7
 * V-REP from http://www.coppeliarobotics.com/downloads.html
